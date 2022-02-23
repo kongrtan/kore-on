@@ -35,14 +35,14 @@ func initCmd() *cobra.Command {
 func (c *strInitCmd) run() error {
 	//workDir, _ := os.Getwd()
 	//var err error = nil
-	//cubeToml, _ := utils.ValidateCubeTomlConfig(workDir)
+	//koreonToml, _ := utils.ValidateCubeTomlConfig(workDir)
 	//startTime := time.Now()
-	//logger.Infof("Start provisioning for cloud infrastructure [%s]", cubeToml.NodePool.Provider)
+	//logger.Infof("Start provisioning for cloud infrastructure [%s]", koreonToml.NodePool.Provider)
 	//
 	//switch c.target {
 	//default:
 	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup cube cluster ..."))
-	//	if err = c.createKubernetes(workDir, cubeToml); err != nil {
+	//	if err = c.createKubernetes(workDir, koreonToml); err != nil {
 	//		return err
 	//	}
 	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))

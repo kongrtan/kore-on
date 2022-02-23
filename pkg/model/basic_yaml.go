@@ -1,9 +1,9 @@
 package model
 
 type BasicYaml struct {
-	//Provider      bool   `yaml:"provider"`
-	//CloudProvider string `yaml:"cloud_provider"`
-	ClusterName string `yaml:"cluster_name"`
+	Provider      bool   `yaml:"provider"`
+	CloudProvider string `yaml:"cloud_provider"`
+	ClusterName   string `yaml:"cluster_name"`
 
 	//# install directories
 	InstallDir  string `yaml:"install_dir"`

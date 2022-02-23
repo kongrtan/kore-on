@@ -1,16 +1,20 @@
 package utils
 
 import (
+	"bufio"
+	cryptornad "crypto/rand"
 	"fmt"
 	"github.com/briandowns/spinner"
 	"github.com/hhkbp2/go-logging"
 	"kore-on/pkg/conf"
 	"kore-on/pkg/model"
 	"reflect"
+	"runtime"
 	"strconv"
 
 	//"github.com/magiconair/properties"
 	"github.com/pelletier/go-toml"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -315,116 +319,91 @@ func ParentPath() string {
 	return parent
 }
 
-func CopyFilePreWork(workDir string, cubeToml model.CubeToml, cmd string) error {
+func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) error {
 
 	errorCnt := 0
 
-	os.MkdirAll(conf.CubeDestDir, os.ModePerm)
+	os.MkdirAll(conf.KoreonDestDir, os.ModePerm)
 
-	idRsa := workDir + "/" + conf.CubeDestDir + "/" + "id_rsa"
+	idRsa := workDir + "/" + conf.KoreonDestDir + "/" + "id_rsa"
+	sslRegistryCrt := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.crt"
+	sslRegistryKey := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.key"
+	nodePoolSecurityPrivateKeyPath := koreonToml.NodePool.Security.PrivateKeyPath
 
-	sslCocktailCrt := workDir + "/" + conf.CubeDestDir + "/" + "ssl_cocktail.crt"
-	sslCocktailKey := workDir + "/" + conf.CubeDestDir + "/" + "ssl_cocktail.key"
-	sslRegistryCrt := workDir + "/" + conf.CubeDestDir + "/" + "ssl_registry.crt"
-	sslRegistryKey := workDir + "/" + conf.CubeDestDir + "/" + "ssl_registry.key"
+	isPrivateRegistryPublicCert := koreonToml.PrivateRegistry.PublicCert
+	regiSslCert := koreonToml.PrivateRegistry.CertFile.SslCertificate
+	regiSslCertKey := koreonToml.PrivateRegistry.CertFile.SslCertificateKey
 
-	harborBackupTgz := workDir + "/" + conf.CubeDestDir + "/" + "harbor-backup.tgz"
-
-	nodePoolSecurityPrivateKeyPath := cubeToml.NodePool.Security.PrivateKeyPath
-
-	isPrivateRegistryPublicCert := cubeToml.PrivateRegistry.PublicCert
-	regiSslCert := cubeToml.PrivateRegistry.CertFile.SslCertificate
-	regiSslCertKey := cubeToml.PrivateRegistry.CertFile.SslCertificateKey
-
-	regiBackupFilePath := cubeToml.PrivateRegistry.BackupFilePath
-	if cubeToml.PrivateRegistry.Install {
+	switch cmd {
+	case "create", "apply", "destroy":
 		if !FileExists(nodePoolSecurityPrivateKeyPath) {
 			PrintError(fmt.Sprintf("private-key-path : %s file is not found", nodePoolSecurityPrivateKeyPath))
 			errorCnt++
 		}
+	default:
 	}
 
-	if isPrivateRegistryPublicCert && cmd == "create" {
+	//레지스트리 설치 여부
+	if koreonToml.PrivateRegistry.Install {
+		//레지스트리 공인 인증서 사용하는 경우 인증서 파일이 있어야 함.
+		if isPrivateRegistryPublicCert && cmd == "create" {
 
-		if !FileExists(regiSslCert) && cubeToml.PrivateRegistry.Install {
-			PrintError(fmt.Sprintf("registry ssl-certificate : %s file is not found", regiSslCert))
-			errorCnt++
-		}
+			if !FileExists(regiSslCert) {
+				PrintError(fmt.Sprintf("registry ssl-certificate : %s file is not found", regiSslCert))
+				errorCnt++
+			}
 
-		if !FileExists(regiSslCertKey) && cubeToml.PrivateRegistry.Install {
-			PrintError(fmt.Sprintf("registry ssl-certificate-key : %s file is not found", regiSslCertKey))
-			errorCnt++
-		}
-
-		if cubeToml.PrivateRegistry.Install {
-			if regiBackupFilePath != "" && !FileExists(regiBackupFilePath) {
-				PrintError(fmt.Sprintf("registry backup file %s is not found", regiBackupFilePath))
+			if !FileExists(regiSslCertKey) {
+				PrintError(fmt.Sprintf("registry ssl-certificate-key : %s file is not found", regiSslCertKey))
 				errorCnt++
 			}
 		}
+		//close_network은 추후 처리
 	}
 
 	if errorCnt > 0 {
 		os.Exit(1)
 	} else {
-		//os.Remove(idRsa)
-		//os.Remove(idRsaPub)
-		os.Remove(sslCocktailCrt)
-		os.Remove(sslCocktailKey)
+		//상단은 validation check 만 진행하고 실제 복사등의 기능 구현은 여기애서 함.
+		os.Remove(idRsa)
 		os.Remove(sslRegistryCrt)
 		os.Remove(sslRegistryKey)
 
-		CopyFile0600(cubeToml.NodePool.Security.PrivateKeyPath, idRsa) //private-key-path copy
-		//CopyFile0600(cubeToml.NodePool.Security.KeyPath, idRsaPub)     //keypath copy
+		CopyFile0600(koreonToml.NodePool.Security.PrivateKeyPath, idRsa) //private-key-path copy
 
 		if isPrivateRegistryPublicCert && cmd == "create" {
 			CopyFile0600(regiSslCert, sslRegistryCrt)
 			CopyFile0600(regiSslCertKey, sslRegistryKey)
 		}
-
-		//파일이 없거나 파일 사이즈가 다른 경우만 복사함.
-		if cubeToml.PrivateRegistry.Install {
-			if regiBackupFilePath != "" && cmd == "create" {
-				size2, _, err2 := FileSizeAndExists(regiBackupFilePath)
-				if err2 != nil {
-					PrintError(err2.Error())
-					os.Exit(1)
-				}
-				size, isExist, _ := FileSizeAndExists(harborBackupTgz)
-				if !isExist || (size != size2) {
-					CopyFile0600(regiBackupFilePath, harborBackupTgz)
-				}
-			}
-		}
 	}
 	return nil
 }
 
-func GetCubeToml(workDir string) (model.CubeToml, error) {
-	var cubeToml = model.CubeToml{}
+func GetCubeToml(workDir string) (model.KoreonToml, error) {
+	var koreonToml = model.KoreonToml{}
 
-	if !FileExists(conf.CubeConfigFile) {
+	if !FileExists(conf.KoreonConfigFile) {
 		//utils.PrintError("cube.toml file is not found. Run cube init first")
-		return cubeToml, fmt.Errorf("file is not found")
+		return koreonToml, fmt.Errorf("file is not found")
 	}
 
-	c, err := ioutil.ReadFile(workDir + "/" + conf.CubeConfigFile)
+	c, err := ioutil.ReadFile(workDir + "/" + conf.KoreonConfigFile)
 	if err != nil {
 		//PrintError(err.Error())
-		return cubeToml, err
+		return koreonToml, err
 	}
 
 	str := string(c)
 	str = strings.Replace(str, "\\", "/", -1)
 	c = []byte(str)
 
-	err = toml.Unmarshal(c, &cubeToml)
+	err = toml.Unmarshal(c, &koreonToml)
 	if err != nil {
 		PrintError(err.Error())
-		return cubeToml, err
+		return koreonToml, err
 	}
 
-	return cubeToml, nil
+	return koreonToml, nil
 }
 
 func CheckDocker() error {
@@ -525,29 +504,27 @@ func PrintError(message string) {
 	fmt.Fprintf(os.Stderr, "%s\n", message)
 }
 
-func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
+func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes map[string]string) string {
 
 	inventory := "# Inventory create by cube\n\n"
 
-	masterIps := cubeToml.NodePool.Master.IP
-	nodes := cubeToml.NodePool.Nodes
-	//edgeIps := cubeToml.LiteEdge.Edge.IP
-	labels := cubeToml.NodePool.Labels
-	registryIp := cubeToml.PrivateRegistry.RegistryIP
-	storageIp := cubeToml.SharedStorage.StorageIP
-	etcdIps := cubeToml.Kubernetes.Etcd.IP
+	masterIps := koreonToml.NodePool.Master.IP
+	nodeIps := koreonToml.NodePool.Node.IP
+	registryIp := koreonToml.PrivateRegistry.RegistryIP
+	storageIp := koreonToml.SharedStorage.StorageIP
+	etcdIps := koreonToml.Kubernetes.Etcd.IP
 
-	masterPrivateIps := cubeToml.NodePool.Master.PrivateIP
-	//edgePrivateIps := cubeToml.LiteEdge.Edge.PrivateIP
-	etcdPrivateIps := cubeToml.Kubernetes.Etcd.PrivateIP
-	registryPrivateIp := cubeToml.PrivateRegistry.PrivateIP
-	storagePrivateIp := cubeToml.SharedStorage.PrivateIP
+	masterPrivateIps := koreonToml.NodePool.Master.PrivateIP
+	nodePrivateIps := koreonToml.NodePool.Node.PrivateIP
+	etcdPrivateIps := koreonToml.Kubernetes.Etcd.PrivateIP
+	registryPrivateIp := koreonToml.PrivateRegistry.PrivateIP
+	storagePrivateIp := koreonToml.SharedStorage.PrivateIP
 
 	sshPort := 22
 	nodeCnt := 0
 
-	if cubeToml.NodePool.Security.SSHPort > 0 {
-		sshPort = cubeToml.NodePool.Security.SSHPort
+	if koreonToml.NodePool.Security.SSHPort > 0 {
+		sshPort = koreonToml.NodePool.Security.SSHPort
 	}
 
 	for i := 0; i < len(masterIps); i++ {
@@ -560,46 +537,23 @@ func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
 		inventory += fmt.Sprintf("master-%v ansible_ssh_host=%s ip=%s ansible_port=%v\n", masterIps[i], masterIps[i], ip, sshPort)
 	}
 
-	for i := 0; i < len(nodes); i++ {
-		for j := 0; j < len(nodes[i].IP); j++ {
-			nodeCnt++
-			ip := ""
-			nodeLabels := ""
-			nodeTaints := ""
-
-			if len(nodes[i].PrivateIP) > 0 {
-				ip = nodes[i].PrivateIP[j]
-			} else {
-				ip = nodes[i].IP[j]
-			}
-
-			inventoryItem := []string{
-				fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v", nodes[i].IP[j], nodes[i].IP[j], ip, sshPort),
-			}
-
-			for n := 0; n < len(labels); n++ {
-				for m := 0; m < len(labels[n].IP); m++ {
-					if nodes[i].IP[j] == labels[n].IP[m] {
-						nodeLabels = strings.Join(labels[n].Labels, ",")
-						nodeTaints = strings.Join(labels[n].Taints, ",")
-					}
-				}
-			}
-
-			if len(nodeLabels) > 0 {
-				inventoryItem = append(inventoryItem, fmt.Sprintf("labels=\"%v\"", nodeLabels))
-			}
-
-			if len(nodeTaints) > 0 {
-				inventoryItem = append(inventoryItem, fmt.Sprintf("taints=\"%v\"", nodeTaints))
-			}
-
-			inventoryItem = append(inventoryItem, "\n")
-
-			inventory += strings.Join(inventoryItem, " ")
-
-			//inventory += fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v labels=\"%v\" taints=\"%v\"\n", nodes[i].IP[j], nodes[i].IP[j], ip, sshPort, nodeLabels, nodeTaints)
+	for j := 0; j < len(nodeIps); j++ {
+		nodeCnt++
+		ip := ""
+		if len(nodePrivateIps) > 0 {
+			ip = nodePrivateIps[j]
+		} else {
+			ip = nodeIps[j]
 		}
+
+		inventoryItem := []string{
+			fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v", nodeIps[j], nodeIps[j], ip, sshPort),
+		}
+		inventoryItem = append(inventoryItem, "\n")
+		inventory += strings.Join(inventoryItem, " ")
+
+		//inventory += fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v labels=\"%v\" taints=\"%v\"\n", nodes[i].IP[j], nodes[i].IP[j], ip, sshPort, nodeLabels, nodeTaints)
+
 	}
 
 	for i := 0; i < len(etcdIps); i++ {
@@ -612,7 +566,7 @@ func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
 		inventory += fmt.Sprintf("etcd-%v ansible_ssh_host=%s ip=%s ansible_port=%v\n", etcdIps[i], etcdIps[i], ip, sshPort)
 	}
 
-	if cubeToml.PrivateRegistry.Install {
+	if koreonToml.PrivateRegistry.Install {
 		ip := ""
 		if registryPrivateIp != "" {
 			ip = registryPrivateIp
@@ -622,7 +576,7 @@ func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
 		inventory += fmt.Sprintf("registry-%v ansible_ssh_host=%s ip=%s ansible_port=%v\n", registryIp, registryIp, ip, sshPort)
 	}
 
-	if cubeToml.SharedStorage.Install {
+	if koreonToml.SharedStorage.Install {
 		ip := ""
 		if storagePrivateIp != "" {
 			ip = storagePrivateIp
@@ -673,35 +627,23 @@ func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[node]\n")
 
-	gpuNodeCnt := 0
-	multiNicCnt := 0
-	gpuNodeList := "\n[gpu-node]\n"
-	multiNicList := "\n[multi-nic-node]\n"
-
-	for i := 0; i < len(nodes); i++ {
-		for j := 0; j < len(nodes[i].IP); j++ {
+	if addNodes != nil && len(addNodes) > 0 {
+		for ip, _ := range addNodes {
+			//inventory += fmt.Sprintf("worker%02d\n", nodeCnt)
+			inventory += fmt.Sprintf("worker-%v\n", ip)
+		}
+	} else {
+		for j := 0; j < len(nodeIps); j++ {
 			nodeCnt++
 			//inventory += fmt.Sprintf("worker%02d\n", nodeCnt)
-			inventory += fmt.Sprintf("worker-%v\n", nodes[i].IP[j])
-
-			for k := 0; k < len(nodes[i].NodeOptions); k++ {
-				switch nodes[i].NodeOptions[k] {
-				case "gpu":
-					gpuNodeList += fmt.Sprintf("worker-%v\n", nodes[i].IP[j])
-					gpuNodeCnt++
-				case "multi-nic":
-					multiNicList += fmt.Sprintf("worker-%v\n", nodes[i].IP[j])
-					multiNicCnt++
-				}
-			}
+			inventory += fmt.Sprintf("worker-%v\n", nodeIps[j])
 		}
 	}
-
 	//registry
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[registry]\n")
-	if cubeToml.PrivateRegistry.Install {
-		if cubeToml.PrivateRegistry.Install {
+	if koreonToml.PrivateRegistry.Install {
+		if koreonToml.PrivateRegistry.Install {
 			//inventory += fmt.Sprintf("registry01\n")
 			inventory += fmt.Sprintf("registry-%v\n", registryIp)
 		}
@@ -710,22 +652,36 @@ func CreateInventoryFile(destDir string, cubeToml model.CubeToml) {
 	//storage
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[storage]\n")
-	if cubeToml.SharedStorage.Install {
-		if cubeToml.SharedStorage.Install {
+	if koreonToml.SharedStorage.Install {
+		if koreonToml.SharedStorage.Install {
 			//inventory += fmt.Sprintf("storage01\n")
 			inventory += fmt.Sprintf("storage-%v\n", storageIp)
 		}
 	}
 	//fmt.Printf("destDir =  %s\n", destDir)
 
+	inventory += fmt.Sprintf("\n")
+	inventory += fmt.Sprintf("[cluster:children]\n")
+	inventory += fmt.Sprintf("masters\n")
+	inventory += fmt.Sprintf("node\n")
+
 	os.MkdirAll(destDir, os.ModePerm)
 
 	ioutil.WriteFile(destDir+"/"+"inventory.ini", []byte(inventory), 0600)
-
+	return destDir + "/" + "inventory.ini"
 }
 
-func CreateBasicYaml(destDir string, cubeToml model.CubeToml) {
+func CreateBasicYaml(destDir string, koreonToml model.KoreonToml) string {
 	var allYaml = model.BasicYaml{}
+
+	//default values
+	allYaml.Provider = false
+	allYaml.CloudProvider = "onpremise"
+
+	allYaml.ServiceIPRange = "10.96.0.0/12"
+	allYaml.PodIPRange = "10.32.0.0/12" // # FlannelNetwork와 동일"
+	allYaml.InstallDir = "/var/lib/knit1"
+
 	lbPort := 6443
 	//extLbPort := 6443
 
@@ -733,33 +689,41 @@ func CreateBasicYaml(destDir string, cubeToml model.CubeToml) {
 	sshPath := fmt.Sprintf("%s/roles/master/files", destDir)
 	allYamlPath := fmt.Sprintf("%s/group_vars/all", destDir)
 
-	k8sVersion := cubeToml.Kubernetes.Version
-	//providerName := cubeToml.NodePool.Provider.Name
+	allYaml.ClusterName = koreonToml.Koreon.ClusterName
 
-	isPrivateRegistryPubicCert := cubeToml.PrivateRegistry.PublicCert
+	clusterID, _ := NewUUID()
+
+	allYaml.ClusterID = clusterID
+
+	k8sVersion := koreonToml.Kubernetes.Version
+	//providerName := koreonToml.NodePool.Provider.Name
+
+	allYaml.DataRootDir = koreonToml.NodePool.DataDir
+
+	isPrivateRegistryPubicCert := koreonToml.PrivateRegistry.PublicCert
 	if isPrivateRegistryPubicCert {
 		os.MkdirAll(regiPath, os.ModePerm)
-		CopyFile(conf.CubeDestDir+"/"+"ssl_registry.crt", regiPath+"/harbor.crt")
-		CopyFile(conf.CubeDestDir+"/"+"ssl_registry.key", regiPath+"/harbor.key")
+		CopyFile(conf.KoreonDestDir+"/"+"ssl_registry.crt", regiPath+"/harbor.crt")
+		CopyFile(conf.KoreonDestDir+"/"+"ssl_registry.key", regiPath+"/harbor.key")
 	}
 
 	os.MkdirAll(sshPath, os.ModePerm)
-	CopyFile(conf.CubeDestDir+"/"+"id_rsa", sshPath+"/id_rsa")
-	CopyFile(conf.CubeDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
+	CopyFile(conf.KoreonDestDir+"/"+"id_rsa", sshPath+"/id_rsa")
+	CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
 
-	//allYaml.Provider = cubeToml.Cube.Provider
-	allYaml.ClosedNetwork = cubeToml.Cube.ClosedNetwork
+	//allYaml.Provider = koreonToml.Cube.Provider
+	allYaml.ClosedNetwork = koreonToml.Koreon.ClosedNetwork
 	//allYaml.CloudProvider = providerName
-	allYaml.DataRootDir = cubeToml.NodePool.DataDir
+	allYaml.DataRootDir = koreonToml.NodePool.DataDir
 	allYaml.K8SVersion = k8sVersion
-	registryIP := cubeToml.PrivateRegistry.RegistryIP
-	registryDomain := cubeToml.PrivateRegistry.RegistryIP
+	registryIP := koreonToml.PrivateRegistry.RegistryIP
+	registryDomain := koreonToml.PrivateRegistry.RegistryIP
 
-	if cubeToml.PrivateRegistry.RegistryDomain != "" {
-		registryDomain = cubeToml.PrivateRegistry.RegistryDomain
+	if koreonToml.PrivateRegistry.RegistryDomain != "" {
+		registryDomain = koreonToml.PrivateRegistry.RegistryDomain
 	}
 
-	if cubeToml.Cube.ClosedNetwork {
+	if koreonToml.Koreon.ClosedNetwork {
 		//allYaml.APIImage = registryDomain + "/google_containers/kube-apiserver-amd64:" + k8sVersion
 		//allYaml.ControllerImage = registryDomain + "/google_containers/kube-controller-manager-amd64:" + k8sVersion
 		//allYaml.SchedulerImage = registryDomain + "/google_containers/kube-scheduler-amd64:" + k8sVersion
@@ -769,111 +733,102 @@ func CreateBasicYaml(destDir string, cubeToml model.CubeToml) {
 		//allYaml.SchedulerImage = "k8s.gcr.io/kube-scheduler-amd64:" + k8sVersion
 	}
 
-	allYaml.ClusterID = cubeToml.Cube.ClusterID
-
-	allYaml.ServiceIPRange = "10.96.0.0/12"
-	if cubeToml.Kubernetes.ServiceCidr != "" {
-		allYaml.ServiceIPRange = cubeToml.Kubernetes.ServiceCidr
+	if koreonToml.Kubernetes.ServiceCidr != "" {
+		allYaml.ServiceIPRange = koreonToml.Kubernetes.ServiceCidr
 	}
 
-	allYaml.PodIPRange = "10.32.0.0/12" // # FlannelNetwork와 동일"
-	if cubeToml.Kubernetes.PodCidr != "" {
-		allYaml.PodIPRange = cubeToml.Kubernetes.PodCidr
+	if koreonToml.Kubernetes.PodCidr != "" {
+		allYaml.PodIPRange = koreonToml.Kubernetes.PodCidr
 	}
 
 	allYaml.LbPort = lbPort
 
-	if cubeToml.NodePool.Master.InternalLb == "" {
-		allYaml.APILbIP = fmt.Sprintf("https://%s:%d", cubeToml.NodePool.Master.IP[0], allYaml.LbPort)
-		allYaml.LbIP = cubeToml.NodePool.Master.IP[0]
+	if len(koreonToml.NodePool.Master.PrivateIP) == len(koreonToml.NodePool.Master.IP) {
+		allYaml.APILbIP = fmt.Sprintf("https://%s:%d", koreonToml.NodePool.Master.PrivateIP[0], allYaml.LbPort)
 	} else {
-		allYaml.APILbIP = fmt.Sprintf("https://%s:%d", cubeToml.NodePool.Master.InternalLb, allYaml.LbPort)
-		allYaml.LbIP = cubeToml.NodePool.Master.InternalLb
+		allYaml.APILbIP = fmt.Sprintf("https://%s:%d", koreonToml.NodePool.Master.IP[0], allYaml.LbPort)
 	}
 
-	//allYaml.ApiSans = cubeToml.Kubernetes.ApiSans
+	if koreonToml.NodePool.Master.LbIP == "" {
+		allYaml.LbIP = koreonToml.NodePool.Master.IP[0]
+	} else {
+		allYaml.LbIP = koreonToml.NodePool.Master.LbIP
+	}
 
-	allYaml.ClusterName = cubeToml.Cube.ClusterName
+	//allYaml.ApiSans = koreonToml.Kubernetes.ApiSans
 
-	allYaml.RegistryInstall = cubeToml.PrivateRegistry.Install
-	allYaml.RegistryDataDir = cubeToml.PrivateRegistry.DataDir
+	allYaml.RegistryInstall = koreonToml.PrivateRegistry.Install
+	allYaml.RegistryDataDir = koreonToml.PrivateRegistry.DataDir
 	allYaml.Registry = registryIP
 	allYaml.RegistryDomain = registryDomain
 	allYaml.RegistryPublicCert = isPrivateRegistryPubicCert
 
-	allYaml.Haproxy = cubeToml.NodePool.Master.HaproxyInstall //# Set False When Already Physical Loadbalancer Available"
+	allYaml.Haproxy = koreonToml.NodePool.Master.HaproxyInstall //# Set False When Already Physical Loadbalancer Available"
 
-	allYaml.NfsIP = cubeToml.SharedStorage.StorageIP
-	allYaml.StorageInstall = cubeToml.SharedStorage.Install
+	allYaml.NfsIP = koreonToml.SharedStorage.StorageIP
+	allYaml.NfsVolumeDir = koreonToml.SharedStorage.VolumeDir
 
-	allYaml.MasterIsolated = cubeToml.NodePool.Master.Isolated
+	allYaml.StorageInstall = koreonToml.SharedStorage.Install
 
-	//if cubeToml.Cube.StorageClassName != "" {
-	//	allYaml.StorageClassName = cubeToml.Cube.StorageClassName
+	allYaml.MasterIsolated = koreonToml.NodePool.Master.Isolated
+
+	//if koreonToml.Cube.StorageClassName != "" {
+	//	allYaml.StorageClassName = koreonToml.Cube.StorageClassName
 	//} else {
 	//	allYaml.StorageClassName = "default-storage"
 	//}
 
-	//switch cubeToml.NodePool.Provider.Name {
+	//switch koreonToml.NodePool.Provider.Name {
 	//case "aws", "eks":
-	//	//todo 확인 필요 && cubeToml.Cube.Provider
-	//	if cubeToml.SharedStorage.StorageType == "" {
+	//	//todo 확인 필요 && koreonToml.Cube.Provider
+	//	if koreonToml.SharedStorage.StorageType == "" {
 	//		allYaml.StorageType = "efs"
 	//	} else {
-	//		allYaml.StorageType = cubeToml.SharedStorage.StorageType
+	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
 	//	}
 	//case "azure", "aks":
-	//	//todo 확인필요 && cubeToml.Cube.Provider
-	//	if cubeToml.SharedStorage.StorageType == "" {
+	//	//todo 확인필요 && koreonToml.Cube.Provider
+	//	if koreonToml.SharedStorage.StorageType == "" {
 	//		allYaml.StorageType = "azurefile"
 	//	} else {
-	//		allYaml.StorageType = cubeToml.SharedStorage.StorageType
+	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
 	//	}
 	//default:
-	//	if cubeToml.SharedStorage.StorageType == "" {
+	//	if koreonToml.SharedStorage.StorageType == "" {
 	//		allYaml.StorageType = "nfs"
 	//	} else {
-	//		allYaml.StorageType = cubeToml.SharedStorage.StorageType
+	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
 	//	}
 	//}
 
-	allYaml.LocalRepository = cubeToml.Cube.LocalRepository
+	allYaml.LocalRepository = koreonToml.Koreon.LocalRepository
 
-	allYaml.AuditLogEnable = cubeToml.Kubernetes.AuditLogEnable
+	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
 
-	if cubeToml.Kubernetes.KubeProxyMode == "" {
+	if koreonToml.Kubernetes.KubeProxyMode == "" {
 		allYaml.KubeProxyMode = "iptables"
 	} else {
-		allYaml.KubeProxyMode = cubeToml.Kubernetes.KubeProxyMode
+		allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
 	}
 
-	if cubeToml.Kubernetes.ContainerRuntime == "" {
+	if koreonToml.Kubernetes.ContainerRuntime == "" {
 		allYaml.ContainerRuntime = "docker"
 	} else {
-		allYaml.ContainerRuntime = cubeToml.Kubernetes.ContainerRuntime
+		allYaml.ContainerRuntime = koreonToml.Kubernetes.ContainerRuntime
 	}
 
-	if cubeToml.Cube.CertValidityDays > 0 {
-		allYaml.CertValidityDays = cubeToml.Cube.CertValidityDays
+	if koreonToml.Koreon.CertValidityDays > 0 {
+		allYaml.CertValidityDays = koreonToml.Koreon.CertValidityDays
 	} else {
 		allYaml.CertValidityDays = 3650
 	}
 	//vxlan-mode
-	allYaml.KubeProxyMode = cubeToml.Kubernetes.KubeProxyMode
+	allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
 	b, _ := yaml.Marshal(allYaml)
 	os.MkdirAll(allYamlPath, os.ModePerm)
 	ioutil.WriteFile(allYamlPath+"/basic.yml", b, 0600)
-}
 
-func CreateExpertYaml(destDir string, cubeToml model.CubeToml) {
-	var allYaml = &model.ExpertYaml{}
-	Set(allYaml, "default")
-
-	allYamlPath := fmt.Sprintf("%s/group_vars/all", destDir)
-	b, _ := yaml.Marshal(allYaml)
-	os.MkdirAll(allYamlPath, os.ModePerm)
-	ioutil.WriteFile(allYamlPath+"/expert.yml", b, 0600)
-
+	return allYamlPath + "/basic.yml"
 }
 
 func setField(field reflect.Value, defaultVal string) error {
@@ -912,4 +867,37 @@ func Set(ptr interface{}, tag string) error {
 		}
 	}
 	return nil
+}
+
+func NewUUID() (string, error) {
+	uuid := make([]byte, 16)
+	n, err := io.ReadFull(cryptornad.Reader, uuid)
+	if n != len(uuid) || err != nil {
+		return "", err
+	}
+	// variant bits; see section 4.1.1
+	uuid[8] = uuid[8]&^0xc0 | 0x80
+	// version 4 (pseudo-random); see section 4.1.3
+	uuid[6] = uuid[6]&^0xf0 | 0x40
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
+}
+
+func CheckUserInput(prompt string, checkWord string) bool {
+	var res string
+	fmt.Print(prompt)
+
+	reader := bufio.NewReader(os.Stdin)
+	buf, _ := reader.ReadString('\n')
+
+	if runtime.GOOS == "windows" {
+		res = strings.Split(buf, "\r\n")[0]
+	} else {
+		res = strings.Split(buf, "\n")[0]
+	}
+
+	if res == checkWord {
+		return true
+	}
+
+	return false
 }

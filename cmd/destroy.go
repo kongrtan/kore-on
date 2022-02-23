@@ -1,7 +1,15 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/spf13/cobra"
+	"kore-on/pkg/conf"
+	"kore-on/pkg/model"
+	"kore-on/pkg/utils"
+	"log"
+	"os"
+	"syscall"
+	"time"
 )
 
 type strDestroyCmd struct {
@@ -10,45 +18,132 @@ type strDestroyCmd struct {
 	timeout int64
 	target  string
 	verbose bool
-	fast    bool
+	step    bool
 }
 
 func destroyCmd() *cobra.Command {
-	create := &strInitCmd{}
+	destroy := &strDestroyCmd{}
 	cmd := &cobra.Command{
 		Use:          "destroy [flags]",
 		Short:        "destroy",
 		Long:         "",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create.run()
+			return destroy.run()
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&create.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
-	f.BoolVarP(&create.verbose, "verbose", "v", false, "verbose")
-	f.BoolVarP(&create.fast, "fast", "f", false, "fast")
-	f.BoolVarP(&create.dryRun, "dry-run", "d", false, "dryRun")
+	f.StringVarP(&destroy.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
+	f.BoolVarP(&destroy.verbose, "verbose", "v", false, "verbose")
+	f.BoolVarP(&destroy.step, "step", "", false, "step")
+	f.BoolVarP(&destroy.dryRun, "dry-run", "d", false, "dryRun")
 	return cmd
 }
 
 func (c *strDestroyCmd) run() error {
-	//workDir, _ := os.Getwd()
-	//var err error = nil
-	//cubeToml, _ := utils.ValidateCubeTomlConfig(workDir)
-	//startTime := time.Now()
-	//logger.Infof("Start provisioning for cloud infrastructure [%s]", cubeToml.NodePool.Provider)
-	//
-	//switch c.target {
-	//default:
-	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup cube cluster ..."))
-	//	if err = c.createKubernetes(workDir, cubeToml); err != nil {
-	//		return err
-	//	}
-	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
-	//}
-	//
+	workDir, _ := os.Getwd()
+	var err error = nil
+	knitToml, _ := utils.ValidateKoreonTomlConfig(workDir)
+	startTime := time.Now()
+	logger.Infof("Start provisioning for cloud infrastructure [%s]", knitToml.NodePool.Provider)
+
+	switch c.target {
+	default:
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nDestroy koreon cluster ..."))
+		if err = c.destroy(workDir, knitToml); err != nil {
+			return err
+		}
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
+	}
+
 	//infra.PrintK8sWorkResult(workDir, c.target)
-	//utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "Installation Completed."))
+	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "Installation Completed."))
+	return nil
+}
+
+func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) error {
+
+	if !utils.CheckUserInput("Do you really want to destroy? Only 'yes' will be accepted to confirm: ", "yes") {
+		fmt.Println("nothing to changed. exit")
+		os.Exit(1)
+	}
+
+	// # 1
+	utils.CheckDocker()
+
+	if koreonToml.Koreon.Version != "" {
+		utils.CopyFilePreWork(workDir, koreonToml, "destroy")
+	}
+
+	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
+
+	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml)
+
+	commandArgs := []string{
+		"docker",
+		"run",
+		"--name",
+		conf.KoreonImageName,
+		"--rm",
+		"--privileged",
+		"-it",
+	}
+
+	commandArgsVol := []string{
+		"-v",
+		fmt.Sprintf("%s:%s", workDir, conf.WorkDir),
+		"-v",
+		fmt.Sprintf("%s:%s", inventoryFilePath, conf.InventoryIni),
+		"-v",
+		fmt.Sprintf("%s:%s", basicFilePath, conf.BasicYaml),
+	}
+
+	commandArgsAnsible := []string{
+		conf.KoreonImage,
+		"ansible-playbook",
+		"-i",
+		conf.InventoryIni,
+		"-u",
+		koreonToml.NodePool.Security.SSHUserID, //수정
+		"--private-key",
+		conf.KoreonDestDir + "/id_rsa",
+	}
+
+	commandArgs = append(commandArgs, commandArgsVol...)
+	commandArgs = append(commandArgs, commandArgsAnsible...)
+
+	//fmt.Printf("%s \n", commandArgs)
+
+	switch c.target {
+	case "all":
+		commandArgs = append(commandArgs, conf.ResetYaml)
+	case "pre-destroy":
+		commandArgs = append(commandArgs, conf.PreDestroyYaml)
+	default:
+		commandArgs = append(commandArgs, conf.ResetYaml)
+		commandArgs = append(commandArgs, "--tags")
+		commandArgs = append(commandArgs, "reset-cluster")
+	}
+
+	if c.verbose {
+		commandArgs = append(commandArgs, "-v")
+	}
+
+	if c.step {
+		commandArgs = append(commandArgs, "--step")
+	}
+
+	if c.dryRun {
+		commandArgs = append(commandArgs, "-C")
+		commandArgs = append(commandArgs, "-D")
+	}
+
+	//log.Printf("Running command and waiting for it to finish...")
+
+	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	if err != nil {
+		log.Printf("Command finished with error: %v", err)
+	}
+
 	return nil
 }

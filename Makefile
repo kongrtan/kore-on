@@ -46,6 +46,6 @@ linux-ctl:
 darwin-ctl:
 	@echo "Make darwin binary ..."
 	rm -f ${TARGETDIR}/koreonctl_darwin_${VERSION}
-	rm -r ~/gows/bin/darwin/koreonctl
+	rm -f ~/gows/bin/darwin/koreonctl
 	GOOS=darwin GOARCH=${GOARCH} go build ${BUILD_OPTIONS} -o ${TARGETDIR}/koreonctl_darwin_${VERSION}
 	ln -s ${TARGETDIR}/koreonctl_darwin_${VERSION} ~/gows/bin/darwin/koreonctl
