@@ -49,7 +49,7 @@ func (c *strPrepareAirgapCmd) run() error {
 
 	switch c.target {
 	default:
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nDestroy koreon cluster ..."))
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nPrepare airgap ..."))
 		if err = c.prepareAirgap(workDir, koreonToml); err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 
 	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 
-	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml)
+	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml, conf.CMD_PREPARE_AIREGAP)
 
 	commandArgs := []string{
 		"docker",
@@ -81,18 +81,12 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 		"--rm",
 		"--privileged",
 		"-it",
-	}
-
-	commandArgsVol := []string{
 		"-v",
-		fmt.Sprintf("%s:/knit/work", workDir),
+		fmt.Sprintf("%s:%s", workDir, conf.WorkDir),
 		"-v",
-		fmt.Sprintf("%s:/knit/inventory/sample/inventory.ini", inventoryFilePath),
+		fmt.Sprintf("%s:%s", inventoryFilePath, conf.InventoryIni),
 		"-v",
-		fmt.Sprintf("%s:/knit/inventory/sample/group_vars/all/basic.yml", basicFilePath),
-	}
-
-	commandArgsAnsible := []string{
+		fmt.Sprintf("%s:%s", basicFilePath, conf.BasicYaml),
 		conf.KoreonImage,
 		"ansible-playbook",
 		"-i",
@@ -104,10 +98,7 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 		conf.PrepareAirgapYaml,
 	}
 
-	commandArgs = append(commandArgs, commandArgsVol...)
-	commandArgs = append(commandArgs, commandArgsAnsible...)
-
-	//fmt.Printf("%s \n", commandArgs)
+	fmt.Printf("%s \n", commandArgs)
 
 	if c.verbose {
 		commandArgs = append(commandArgs, "-v")

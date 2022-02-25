@@ -163,7 +163,7 @@ func (c *strApplyCmd) run() error {
 	} else {
 		// 공통
 		sshId := knitToml.NodePool.Security.SSHUserID
-		basicFilePath := utils.CreateBasicYaml(workDir, knitToml)
+		basicFilePath := utils.CreateBasicYaml(workDir, knitToml, conf.CMD_APPLY)
 
 		//노드 추가
 		if len(addMap) > 0 {

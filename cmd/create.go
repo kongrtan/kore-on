@@ -104,7 +104,7 @@ func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
 
 	inventoryFilePath := utils.CreateInventoryFile(workDir, knitToml, nil)
 
-	basicFilePath := utils.CreateBasicYaml(workDir, knitToml)
+	basicFilePath := utils.CreateBasicYaml(workDir, knitToml, conf.CMD_CREATE)
 
 	commandArgs := []string{
 		"docker",
@@ -119,6 +119,8 @@ func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
 	commandArgsVol := []string{
 		"-v",
 		fmt.Sprintf("%s:%s", workDir, conf.WorkDir),
+		"-v",
+		fmt.Sprintf("%s:%s", workDir+"/"+conf.KoreonDestDir, conf.Inventory+"/"+conf.KoreonDestDir),
 		"-v",
 		fmt.Sprintf("%s:%s", inventoryFilePath, conf.InventoryIni),
 		"-v",
@@ -140,7 +142,7 @@ func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
 	commandArgs = append(commandArgs, commandArgsVol...)
 	commandArgs = append(commandArgs, commandArgsAnsible...)
 
-	//fmt.Printf("%s \n", commandArgs)
+	fmt.Printf("%s \n", commandArgs)
 
 	if c.verbose {
 		commandArgs = append(commandArgs, "-v")

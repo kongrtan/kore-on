@@ -77,7 +77,9 @@ func ValidateKoreonTomlConfig(workDir string) (model.KoreonToml, bool) {
 
 	kubernetesPodCidr := koreonToml.Kubernetes.PodCidr
 	kubernetesServiceCidr := koreonToml.Kubernetes.ServiceCidr
+
 	k8sVersion := koreonToml.Kubernetes.Version
+
 	//apiSans := koreonToml.Kubernetes.ApiSans
 
 	etcdCnt := len(koreonToml.Kubernetes.Etcd.IP)
@@ -103,12 +105,15 @@ func ValidateKoreonTomlConfig(workDir string) (model.KoreonToml, bool) {
 	}
 
 	if koreonToml.Koreon.InstallDir != "" && !strings.HasPrefix(koreonToml.Koreon.InstallDir, "/") {
-		PrintError("cube > install-dir is Only absolute paths are supported.")
+		PrintError("koreon > install-dir is Only absolute paths are supported.")
 		errorCnt++
 	}
 
 	if k8sVersion == "" {
 		PrintError("kubernetes > version is required.")
+		errorCnt++
+	} else if !IsSupportK8sVersion(k8sVersion) {
+		PrintError(fmt.Sprintf("kubernetes > supported version: %v", conf.SupportK8SVersion))
 		errorCnt++
 	}
 
@@ -256,66 +261,21 @@ func ValidateKoreonTomlConfig(workDir string) (model.KoreonToml, bool) {
 			}
 		}
 	}
-	/*
-		if len(koreonToml.LiteEdge.Edge.IP) == 0 {
-			PrintError("liteedge > edge > ip is required.")
+
+	if koreonToml.Koreon.ClosedNetwork {
+		if koreonToml.Koreon.LocalRepository == "" && koreonToml.Koreon.LocalRepositoryArchiveFile == "" {
+			PrintError("koreon> local-repository or local-repository-archive-file is required.")
 			errorCnt++
-		} else {
-			isExist := false
-			for i := 0; i < len(koreonToml.LiteEdge.Edge.IP); i++ {
-				for j := 0; j < len(koreonToml.NodePool.Master.IP); j++ {
-					if koreonToml.LiteEdge.Edge.IP[i] == koreonToml.NodePool.Master.IP[j] {
-						isExist = true
-						//	//	return
-					}
-				}
+		}
 
-				if koreonToml.NodePool.Nodes != nil {
-					for j := 0; j < len(koreonToml.NodePool.Nodes[0].IP); j++ {
-						if koreonToml.LiteEdge.Edge.IP[i] == koreonToml.NodePool.Nodes[0].IP[j] {
-							isExist = true
-						}
-					}
-				}
-
-			}
-
-			for i := 0; i < len(koreonToml.LiteEdge.Edge.PrivateIP); i++ {
-				for j := 0; j < len(koreonToml.NodePool.Master.PrivateIP); j++ {
-					if koreonToml.LiteEdge.Edge.PrivateIP[i] == koreonToml.NodePool.Master.PrivateIP[j] {
-						isExist = true
-					}
-				}
-
-				if koreonToml.NodePool.Nodes != nil {
-					for j := 0; j < len(koreonToml.NodePool.Nodes[0].PrivateIP); j++ {
-						if koreonToml.LiteEdge.Edge.PrivateIP[i] == koreonToml.NodePool.Nodes[0].PrivateIP[j] {
-							isExist = true
-						}
-					}
-				}
-			}
-
-			if !isExist {
-				PrintError("liteedge > edge > ip does not exist on the nodepool.master  or nodepool.nodes")
+		if privateRegistryInstall {
+			if koreonToml.PrivateRegistry.RegistryArchiveFile == "" {
+				PrintError("private-registry >  registry-archive-file is required.")
 				errorCnt++
 			}
 		}
+	}
 
-		if koreonToml.LiteEdge.Kakao.ApiKey != "" || koreonToml.LiteEdge.Kakao.SenderKey != "" {
-			if koreonToml.LiteEdge.Kakao.ApiKey == "" || koreonToml.LiteEdge.Kakao.SenderKey == "" {
-				PrintError("liteedge > kakao > api-key or sender-key does not exist. ")
-				errorCnt++
-			}
-		}
-
-		if koreonToml.LiteEdge.Mail.UserName != "" || koreonToml.LiteEdge.Mail.Password != "" || koreonToml.LiteEdge.Mail.Host != "" || koreonToml.LiteEdge.Mail.Port != 0 {
-			if koreonToml.LiteEdge.Mail.UserName == "" || koreonToml.LiteEdge.Mail.Password == "" || koreonToml.LiteEdge.Mail.Host == "" || koreonToml.LiteEdge.Mail.Port == 0 {
-				PrintError("liteedge > mail > host or port or username or password  does not exist. ")
-				errorCnt++
-			}
-		}
-	*/
 	if errorCnt > 0 {
 		logger.Error("there are one or more errors")
 		os.Exit(1)

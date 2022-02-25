@@ -40,8 +40,14 @@ clean:
 
 linux-ctl:
 	@echo "Make linux binary ..."
+
 	GOOS=linux GOARCH=${GOARCH} go build ${BUILD_OPTIONS} -o ${TARGETDIR}/koreonctl_linux_${VERSION}
 	ln -s ${TARGETDIR}/koreonctl_linux_${VERSION} ~/gows/bin/linux/koreonctl
+
+template:
+	@echo "make template.go file ..."
+	sh -c "./make_template_go.sh"
+
 
 darwin-ctl:
 	@echo "Make darwin binary ..."

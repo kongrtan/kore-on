@@ -1,7 +1,13 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/spf13/cobra"
+	"io/ioutil"
+	"kore-on/pkg/conf"
+	"kore-on/pkg/utils"
+	"os"
+	"time"
 )
 
 type strInitCmd struct {
@@ -33,22 +39,20 @@ func initCmd() *cobra.Command {
 }
 
 func (c *strInitCmd) run() error {
-	//workDir, _ := os.Getwd()
-	//var err error = nil
-	//koreonToml, _ := utils.ValidateCubeTomlConfig(workDir)
-	//startTime := time.Now()
-	//logger.Infof("Start provisioning for cloud infrastructure [%s]", koreonToml.NodePool.Provider)
-	//
-	//switch c.target {
-	//default:
-	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup cube cluster ..."))
-	//	if err = c.createKubernetes(workDir, koreonToml); err != nil {
-	//		return err
-	//	}
-	//	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
-	//}
-	//
-	//infra.PrintK8sWorkResult(workDir, c.target)
-	//utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "Installation Completed."))
+	currDir, err := os.Getwd()
+	currTime := time.Now()
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Getting cube.toml file ...")
+	if utils.FileExists(currDir + "/" + conf.KoreonConfigFile) {
+		fmt.Println("Previous " + conf.KoreonConfigFile + " file exist and it will be backup")
+		os.Rename(conf.KoreonConfigFile, conf.KoreonConfigFile+"_"+currTime.Format("20060102150405"))
+	}
+	ioutil.WriteFile(currDir+"/"+conf.KoreonConfigFile, []byte(conf.Template), 0600)
+	fmt.Printf(conf.SUCCESS_FORMAT, fmt.Sprintf("Initialize completed, Edit %s file according to your environment and run `cube create`", conf.KoreonConfigFile))
+
 	return nil
 }

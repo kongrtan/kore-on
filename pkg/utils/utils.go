@@ -328,11 +328,18 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	idRsa := workDir + "/" + conf.KoreonDestDir + "/" + "id_rsa"
 	sslRegistryCrt := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.crt"
 	sslRegistryKey := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.key"
+
+	repoBackupTgz := workDir + "/" + conf.KoreonDestDir + "/" + conf.RepoFile
+	harborBackupTgz := workDir + "/" + conf.KoreonDestDir + "/" + conf.HarborFile
+
 	nodePoolSecurityPrivateKeyPath := koreonToml.NodePool.Security.PrivateKeyPath
 
 	isPrivateRegistryPublicCert := koreonToml.PrivateRegistry.PublicCert
 	regiSslCert := koreonToml.PrivateRegistry.CertFile.SslCertificate
 	regiSslCertKey := koreonToml.PrivateRegistry.CertFile.SslCertificateKey
+
+	repoBackupFilePath := koreonToml.Koreon.LocalRepositoryArchiveFile
+	harborBackupFilePath := koreonToml.PrivateRegistry.RegistryArchiveFile
 
 	switch cmd {
 	case "create", "apply", "destroy":
@@ -346,7 +353,7 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	//레지스트리 설치 여부
 	if koreonToml.PrivateRegistry.Install {
 		//레지스트리 공인 인증서 사용하는 경우 인증서 파일이 있어야 함.
-		if isPrivateRegistryPublicCert && cmd == "create" {
+		if isPrivateRegistryPublicCert && cmd == conf.CMD_CREATE {
 
 			if !FileExists(regiSslCert) {
 				PrintError(fmt.Sprintf("registry ssl-certificate : %s file is not found", regiSslCert))
@@ -361,6 +368,22 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 		//close_network은 추후 처리
 	}
 
+	if koreonToml.Koreon.ClosedNetwork && cmd == conf.CMD_CREATE {
+		if koreonToml.Koreon.LocalRepository == "" {
+			if !FileExists(repoBackupFilePath) {
+				PrintError(fmt.Sprintf("local-repository-archive-file: %s file is not found", repoBackupFilePath))
+				errorCnt++
+			}
+		}
+
+		if koreonToml.PrivateRegistry.Install {
+			if !FileExists(harborBackupFilePath) {
+				PrintError(fmt.Sprintf("local-repository-archive-file: %s file is not found", harborBackupFilePath))
+				errorCnt++
+			}
+		}
+	}
+
 	if errorCnt > 0 {
 		os.Exit(1)
 	} else {
@@ -371,9 +394,35 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 
 		CopyFile0600(koreonToml.NodePool.Security.PrivateKeyPath, idRsa) //private-key-path copy
 
-		if isPrivateRegistryPublicCert && cmd == "create" {
+		if isPrivateRegistryPublicCert && cmd == conf.CMD_CREATE {
 			CopyFile0600(regiSslCert, sslRegistryCrt)
 			CopyFile0600(regiSslCertKey, sslRegistryKey)
+		}
+
+		if koreonToml.Koreon.ClosedNetwork && cmd == conf.CMD_CREATE {
+			if koreonToml.Koreon.LocalRepository == "" {
+				size2, _, err2 := FileSizeAndExists(repoBackupFilePath)
+				if err2 != nil {
+					PrintError(err2.Error())
+					os.Exit(1)
+				}
+				size, isExist, _ := FileSizeAndExists(repoBackupTgz)
+				if !isExist || (size != size2) {
+					CopyFile0600(repoBackupFilePath, repoBackupTgz)
+				}
+			}
+
+			if koreonToml.PrivateRegistry.Install {
+				size2, _, err2 := FileSizeAndExists(harborBackupFilePath)
+				if err2 != nil {
+					PrintError(err2.Error())
+					os.Exit(1)
+				}
+				size, isExist, _ := FileSizeAndExists(harborBackupTgz)
+				if !isExist || (size != size2) {
+					CopyFile0600(harborBackupFilePath, harborBackupTgz)
+				}
+			}
 		}
 	}
 	return nil
@@ -671,16 +720,17 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 	return destDir + "/" + "inventory.ini"
 }
 
-func CreateBasicYaml(destDir string, koreonToml model.KoreonToml) string {
+func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string) string {
 	var allYaml = model.BasicYaml{}
 
 	//default values
 	allYaml.Provider = false
 	allYaml.CloudProvider = "onpremise"
 
+	allYaml.PodIPRange = "10.32.0.0/12"
 	allYaml.ServiceIPRange = "10.96.0.0/12"
-	allYaml.PodIPRange = "10.32.0.0/12" // # FlannelNetwork와 동일"
-	allYaml.InstallDir = "/var/lib/knit1"
+	allYaml.NodePortRange = "30000-32767"
+	allYaml.InstallDir = "/var/lib/koreon"
 
 	lbPort := 6443
 	//extLbPort := 6443
@@ -692,8 +742,16 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml) string {
 	allYaml.ClusterName = koreonToml.Koreon.ClusterName
 
 	clusterID, _ := NewUUID()
-
+	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
 	allYaml.ClusterID = clusterID
+
+	if koreonToml.Kubernetes.NodePortRange != "" {
+		allYaml.NodePortRange = koreonToml.Kubernetes.NodePortRange
+	}
+
+	if koreonToml.Koreon.InstallDir != "" {
+		allYaml.InstallDir = koreonToml.Koreon.InstallDir
+	}
 
 	k8sVersion := koreonToml.Kubernetes.Version
 	//providerName := koreonToml.NodePool.Provider.Name
@@ -824,6 +882,21 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml) string {
 	}
 	//vxlan-mode
 	allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
+
+	switch command {
+	case conf.CMD_PREPARE_AIREGAP:
+		allYaml.ClosedNetwork = false
+		allYaml.ArchiveRepo = true
+	default:
+
+	}
+
+	if koreonToml.Koreon.ClosedNetwork {
+		allYaml.LocalRepository = fmt.Sprintf("http://%s:8080", koreonToml.PrivateRegistry.RegistryIP)
+		allYaml.LocalRepositoryArchiveFile = conf.KoreonDestDir + "/" + conf.RepoFile
+		allYaml.RegistryArchiveFile = conf.KoreonDestDir + "/" + conf.HarborFile
+	}
+
 	b, _ := yaml.Marshal(allYaml)
 	os.MkdirAll(allYamlPath, os.ModePerm)
 	ioutil.WriteFile(allYamlPath+"/basic.yml", b, 0600)
@@ -900,4 +973,15 @@ func CheckUserInput(prompt string, checkWord string) bool {
 	}
 
 	return false
+}
+
+func IsSupportK8sVersion(version string) bool {
+	isSupport := false
+	for _, v := range conf.SupportK8SVersion {
+		if v == version {
+			isSupport = true
+			break
+		}
+	}
+	return isSupport
 }

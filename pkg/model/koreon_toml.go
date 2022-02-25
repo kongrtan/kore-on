@@ -8,13 +8,16 @@ type KoreonToml struct {
 		ClusterDescription string `toml:"cluster-description,omitempty"`
 		ClusterType        string `toml:"cluster-type,omitempty"`
 		ClusterID          string `toml:"cluster-id,omitempty"`
-		ClosedNetwork      bool   `toml:"closed-network,omitempty"`
 		AlertLanguage      string `toml:"alert-language,omitempty"`
 		StorageClassName   string `toml:"storage-class-name,omitempty"`
-		LocalRepository    string `toml:"local-repository,omitempty"`
 		DebugMode          bool   `toml:"debug-mode,omitempty"`
 		InstallDir         string `toml:"install-dir,omitempty"`
 		CertValidityDays   int    `toml:"cert-validity-days,omitempty"`
+		//#Airgap
+		//ArchiveRepo                bool   `toml:"archive-repo"`
+		ClosedNetwork              bool   `toml:"closed-network,omitempty"`
+		LocalRepository            string `toml:"local-repository,omitempty"`
+		LocalRepositoryArchiveFile string `toml:"local-repository-archive-file"`
 	} `toml:"koreon,omitempty"`
 
 	Kubernetes struct {
@@ -26,6 +29,7 @@ type KoreonToml struct {
 		KubeProxyMode    string   `toml:"kube-proxy-mode"`
 		ContainerRuntime string   `toml:"container-runtime"`
 		VxlanMode        bool     `toml:"vxlan-mode"`
+		NodePortRange    string   `toml:"node-port-range,omitempty"`
 
 		Etcd struct {
 			IP            []string `toml:"ip,omitempty"`
@@ -55,11 +59,11 @@ type KoreonToml struct {
 			PrivateIP []string `toml:"private-ip,omitempty"`
 			LbIP      string   `toml:"lb-ip,omitempty"`
 
-			IngressHost    string `toml:"ingress-host,omitempty"`
-			NodePortURL    string `toml:"node-port-url,omitempty"`
-			NodePortRange  string `toml:"node-port-Range,omitempty"`
-			Isolated       bool   `toml:"isolated"`
-			HaproxyInstall bool   `toml:"haproxy-install"`
+			IngressHost string `toml:"ingress-host,omitempty"`
+			NodePortURL string `toml:"node-port-url,omitempty"`
+
+			Isolated       bool `toml:"isolated"`
+			HaproxyInstall bool `toml:"haproxy-install"`
 		} `toml:"master,omitempty"`
 
 		Node StrNode `toml:"node,omitempty"`
@@ -76,13 +80,14 @@ type KoreonToml struct {
 	} `toml:"shared-storage,omitempty"`
 
 	PrivateRegistry struct {
-		Install        bool   `toml:"install"`
-		RegistryIP     string `toml:"registry-ip,omitempty"`
-		RegistryDomain string `toml:"registry-domain,omitempty"`
-		PrivateIP      string `toml:"private-ip,omitempty"`
-		DataDir        string `toml:"data-dir,omitempty"`
-		PublicCert     bool   `toml:"public-cert"`
-		CertFile       struct {
+		Install             bool   `toml:"install"`
+		RegistryIP          string `toml:"registry-ip,omitempty"`
+		RegistryDomain      string `toml:"registry-domain,omitempty"`
+		PrivateIP           string `toml:"private-ip,omitempty"`
+		DataDir             string `toml:"data-dir,omitempty"`
+		PublicCert          bool   `toml:"public-cert"`
+		RegistryArchiveFile string `toml:"registry-archive-file"`
+		CertFile            struct {
 			SslCertificate    string `toml:"ssl-certificate,omitempty"`
 			SslCertificateKey string `toml:"ssl-certificate-key,omitempty"`
 		} `toml:"cert-file,omitempty"`
@@ -93,4 +98,9 @@ type StrNode struct {
 	IP          []string `toml:"ip,omitempty"`
 	PrivateIP   []string `toml:"private-ip,omitempty"`
 	NodeOptions []string `toml:"node-options,omitempty"`
+}
+
+// constructor function
+func (a *KoreonToml) Fill_defaults() {
+	a.Koreon.Version = "aaa"
 }

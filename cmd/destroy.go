@@ -77,7 +77,7 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 
 	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 
-	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml)
+	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml, conf.CMD_DESTROY)
 
 	commandArgs := []string{
 		"docker",
@@ -112,13 +112,9 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 	commandArgs = append(commandArgs, commandArgsVol...)
 	commandArgs = append(commandArgs, commandArgsAnsible...)
 
-	//fmt.Printf("%s \n", commandArgs)
-
 	switch c.target {
 	case "all":
 		commandArgs = append(commandArgs, conf.ResetYaml)
-	case "pre-destroy":
-		commandArgs = append(commandArgs, conf.PreDestroyYaml)
 	default:
 		commandArgs = append(commandArgs, conf.ResetYaml)
 		commandArgs = append(commandArgs, "--tags")
@@ -137,6 +133,7 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 		commandArgs = append(commandArgs, "-C")
 		commandArgs = append(commandArgs, "-D")
 	}
+	fmt.Printf("%s \n", commandArgs)
 
 	//log.Printf("Running command and waiting for it to finish...")
 
