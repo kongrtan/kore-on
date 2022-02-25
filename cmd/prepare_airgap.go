@@ -45,15 +45,14 @@ func (c *strPrepareAirgapCmd) run() error {
 	var err error = nil
 	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
 	startTime := time.Now()
-	logger.Infof("Start provisioning for cloud infrastructure [%s]", koreonToml.NodePool.Provider)
-
+	logger.Infof("Start provisioning for cloud infrastructure")
 	switch c.target {
 	default:
 		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nPrepare airgap ..."))
 		if err = c.prepareAirgap(workDir, koreonToml); err != nil {
 			return err
 		}
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
 	}
 
 	//infra.PrintK8sWorkResult(workDir, c.target)
@@ -65,9 +64,7 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 	// # 1
 	utils.CheckDocker()
 
-	if koreonToml.Koreon.Version != "" {
-		utils.CopyFilePreWork(workDir, koreonToml, "destroy")
-	}
+	utils.CopyFilePreWork(workDir, koreonToml, conf.CMD_DESTROY)
 
 	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 
@@ -94,7 +91,7 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 		"-u",
 		koreonToml.NodePool.Security.SSHUserID, //수정
 		"--private-key",
-		conf.KoreonDestDir + "/id_rsa",
+		conf.KoreonDestDir + "/" + conf.IdRsa,
 		conf.PrepareAirgapYaml,
 	}
 
@@ -115,7 +112,7 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 
 	//log.Printf("Running command and waiting for it to finish...")
 
-	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
 		log.Printf("Command finished with error: %v", err)
 	}

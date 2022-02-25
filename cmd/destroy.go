@@ -43,17 +43,17 @@ func destroyCmd() *cobra.Command {
 func (c *strDestroyCmd) run() error {
 	workDir, _ := os.Getwd()
 	var err error = nil
-	knitToml, _ := utils.ValidateKoreonTomlConfig(workDir)
+	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
 	startTime := time.Now()
-	logger.Infof("Start provisioning for cloud infrastructure [%s]", knitToml.NodePool.Provider)
+	logger.Infof("Start provisioning for cloud infrastructure")
 
 	switch c.target {
 	default:
 		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nDestroy koreon cluster ..."))
-		if err = c.destroy(workDir, knitToml); err != nil {
+		if err = c.destroy(workDir, koreonToml); err != nil {
 			return err
 		}
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup Koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
 	}
 
 	//infra.PrintK8sWorkResult(workDir, c.target)
@@ -71,9 +71,7 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 	// # 1
 	utils.CheckDocker()
 
-	if koreonToml.Koreon.Version != "" {
-		utils.CopyFilePreWork(workDir, koreonToml, "destroy")
-	}
+	utils.CopyFilePreWork(workDir, koreonToml, conf.CMD_DESTROY)
 
 	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 
@@ -106,7 +104,7 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 		"-u",
 		koreonToml.NodePool.Security.SSHUserID, //수정
 		"--private-key",
-		conf.KoreonDestDir + "/id_rsa",
+		conf.KoreonDestDir + "/" + conf.IdRsa,
 	}
 
 	commandArgs = append(commandArgs, commandArgsVol...)
@@ -137,7 +135,7 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 
 	//log.Printf("Running command and waiting for it to finish...")
 
-	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
 		log.Printf("Command finished with error: %v", err)
 	}

@@ -60,58 +60,56 @@ func (c *strApplyCmd) run() error {
 	var addMap = make(map[string]string)
 	var delMap = make(map[string]string)
 	workDir, _ := os.Getwd()
-	knitToml, _ := utils.ValidateKoreonTomlConfig(workDir)
-	if knitToml.Koreon.Version != "" {
-		utils.CopyFilePreWork(workDir, knitToml, "apply")
-	}
-	cubeK8sVersion := knitToml.Kubernetes.Version
-	spCubeK8sVersion := strings.Split(cubeK8sVersion, ".")
-	cubeMinor, _ := strconv.Atoi(spCubeK8sVersion[1])
-	cubePatch, _ := strconv.Atoi(spCubeK8sVersion[2])
+	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
+
+	utils.CopyFilePreWork(workDir, koreonToml, "apply")
+
+	koreonK8sVersion := koreonToml.Kubernetes.Version
+	spK8sVersion := strings.Split(koreonK8sVersion, ".")
+	koreonMinor, _ := strconv.Atoi(spK8sVersion[1])
+	koreonPatch, _ := strconv.Atoi(spK8sVersion[2])
 
 	port := 22
-	certFileName := conf.KoreonDestDir + "/id_rsa"
+	certFileName := conf.KoreonDestDir + "/" + conf.IdRsa
 
-	client, err := createK8sClient(knitToml.NodePool.Master.IP[0], port, knitToml.NodePool.Security.SSHUserID, certFileName)
+	client, err := createK8sClient(koreonToml.NodePool.Master.IP[0], port, koreonToml.NodePool.Security.SSHUserID, certFileName)
 	if err != nil {
 		return err
 	}
 
 	minor, patch, _ := getVersion(client)
 
-	if minor == cubeMinor {
-		if patch < cubePatch {
+	if minor == koreonMinor {
+		if patch < koreonPatch {
 			//업그레이드 가능
 			isUpgrade = true
-		} else if patch > cubePatch {
-			return fmt.Errorf("downgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, cubeK8sVersion)
+		} else if patch > koreonPatch {
+			return fmt.Errorf("downgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, koreonK8sVersion)
 		}
-	} else if minor+1 == cubeMinor {
+	} else if minor+1 == koreonMinor {
 		//업그레이드 가능
 		isUpgrade = true
-	} else if minor+1 < cubeMinor {
+	} else if minor+1 < koreonMinor {
 		//2단계로 여서 업그레이드 불가능
-		return fmt.Errorf("upgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, cubeK8sVersion)
+		return fmt.Errorf("upgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, koreonK8sVersion)
 
-	} else if minor > cubeMinor {
-		return fmt.Errorf("downgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, cubeK8sVersion)
+	} else if minor > koreonMinor {
+		return fmt.Errorf("downgrade not supported. current version 1.%d.%d, toml > kubernetes > version: %s\n", minor, patch, koreonK8sVersion)
 	}
 
 	utils.CheckDocker()
 
-	if knitToml.Koreon.Version != "" {
-		utils.CopyFilePreWork(workDir, knitToml, "apply")
-	}
+	utils.CopyFilePreWork(workDir, koreonToml, "apply")
 
 	var kubeNodes = getNodes(client)
 
 	//추가 목록
-	for i := 0; i < len(knitToml.NodePool.Node.IP); i++ {
+	for i := 0; i < len(koreonToml.NodePool.Node.IP); i++ {
 
-		ip := knitToml.NodePool.Node.IP[i]
-		privateIp := knitToml.NodePool.Node.IP[i]
-		if len(knitToml.NodePool.Node.IP) == len(knitToml.NodePool.Node.PrivateIP) {
-			privateIp = knitToml.NodePool.Node.PrivateIP[i]
+		ip := koreonToml.NodePool.Node.IP[i]
+		privateIp := koreonToml.NodePool.Node.IP[i]
+		if len(koreonToml.NodePool.Node.IP) == len(koreonToml.NodePool.Node.PrivateIP) {
+			privateIp = koreonToml.NodePool.Node.PrivateIP[i]
 		}
 
 		exists := false
@@ -131,11 +129,11 @@ func (c *strApplyCmd) run() error {
 	for name, _ := range kubeNodes {
 		svrIp := kubeNodes[name]
 		exists := false
-		for j := 0; j < len(knitToml.NodePool.Node.IP); j++ {
-			ip := knitToml.NodePool.Node.IP[j]
-			privateIp := knitToml.NodePool.Node.IP[j]
-			if len(knitToml.NodePool.Node.IP) == len(knitToml.NodePool.Node.PrivateIP) {
-				privateIp = knitToml.NodePool.Node.PrivateIP[j]
+		for j := 0; j < len(koreonToml.NodePool.Node.IP); j++ {
+			ip := koreonToml.NodePool.Node.IP[j]
+			privateIp := koreonToml.NodePool.Node.IP[j]
+			if len(koreonToml.NodePool.Node.IP) == len(koreonToml.NodePool.Node.PrivateIP) {
+				privateIp = koreonToml.NodePool.Node.PrivateIP[j]
 			}
 
 			if strings.Contains(svrIp, ip) || strings.Contains(svrIp, privateIp) {
@@ -150,8 +148,8 @@ func (c *strApplyCmd) run() error {
 	//etcd check
 	for delNodeName, _ := range delMap {
 		svrIp := kubeNodes[delNodeName]
-		for j := 0; j < len(knitToml.Kubernetes.Etcd.IP); j++ {
-			if knitToml.Kubernetes.Etcd.IP[j] == svrIp {
+		for j := 0; j < len(koreonToml.Kubernetes.Etcd.IP); j++ {
+			if koreonToml.Kubernetes.Etcd.IP[j] == svrIp {
 				utils.PrintInfo(fmt.Sprintf(conf.ERROR_FORMAT, fmt.Sprintf("Delete worker node running etcd is not allowed.")))
 				return nil
 			}
@@ -162,24 +160,24 @@ func (c *strApplyCmd) run() error {
 		utils.PrintInfo(fmt.Sprintf("There is no worker node to added or deleted."))
 	} else {
 		// 공통
-		sshId := knitToml.NodePool.Security.SSHUserID
-		basicFilePath := utils.CreateBasicYaml(workDir, knitToml, conf.CMD_APPLY)
+		sshId := koreonToml.NodePool.Security.SSHUserID
+		basicFilePath := utils.CreateBasicYaml(workDir, koreonToml, conf.CMD_APPLY)
 
 		//노드 추가
 		if len(addMap) > 0 {
-			inventoryFilePath := utils.CreateInventoryFile(workDir, knitToml, addMap)
+			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, addMap)
 			addNode(workDir, inventoryFilePath, basicFilePath, sshId, addMap, c)
 		}
 
 		//노드 삭제
 		if len(delMap) > 0 {
-			inventoryFilePath := utils.CreateInventoryFile(workDir, knitToml, nil)
+			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 			removeNode(workDir, inventoryFilePath, basicFilePath, sshId, delMap, c)
 		}
 
 		//업그레이드
 		if isUpgrade {
-			inventoryFilePath := utils.CreateInventoryFile(workDir, knitToml, nil)
+			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 			upgrade(workDir, inventoryFilePath, basicFilePath, sshId, c)
 		}
 	}
@@ -211,7 +209,7 @@ func addNode(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		"-u",
 		sshId,
 		"--private-key",
-		conf.KoreonDestDir + "/id_rsa",
+		conf.KoreonDestDir + "/" + conf.IdRsa,
 		conf.AddNodeYaml,
 	}
 
@@ -232,7 +230,7 @@ func addNode(workDir string, inventoryFilePath string, basicFilePath string, ssh
 
 	//log.Printf("Running command and waiting for it to finish...")
 
-	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
 		log.Printf("Command finished with error: %v", err)
 	}
@@ -273,7 +271,7 @@ func removeNode(workDir string, inventoryFilePath string, basicFilePath string, 
 			"-u",
 			sshId,
 			"--private-key",
-			conf.KoreonDestDir + "/id_rsa",
+			conf.KoreonDestDir + "/" + conf.IdRsa,
 			"-e",
 			fmt.Sprintf("remove_node_name=%s", delNodeName),
 			"-e",
@@ -298,7 +296,7 @@ func removeNode(workDir string, inventoryFilePath string, basicFilePath string, 
 
 		//log.Printf("Running command and waiting for it to finish...")
 
-		err = syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+		err = syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 		if err != nil {
 			log.Printf("Command finished with error: %v", err)
 		}
@@ -328,7 +326,7 @@ func upgrade(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		"-u",
 		sshId,
 		"--private-key",
-		conf.KoreonDestDir + "/id_rsa",
+		conf.KoreonDestDir + "/" + conf.IdRsa,
 		conf.UpgradeYaml,
 	}
 
@@ -349,7 +347,7 @@ func upgrade(workDir string, inventoryFilePath string, basicFilePath string, ssh
 
 	//log.Printf("Running command and waiting for it to finish...")
 
-	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
 		log.Printf("Command finished with error: %v", err)
 	}

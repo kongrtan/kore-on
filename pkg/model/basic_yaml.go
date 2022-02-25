@@ -10,14 +10,15 @@ type BasicYaml struct {
 	DataRootDir string `yaml:"data_root_dir"`
 
 	//# kubernetes options
-	K8SVersion     string `yaml:"k8s_version" comment:"kubernetes options"`
-	ClusterID      string `yaml:"cluster_id"`
-	APILbIP        string `yaml:"api_lb_ip"`
-	LbIP           string `yaml:"lb_ip"`
-	LbPort         int    `yaml:"lb_port"`
-	PodIPRange     string `yaml:"pod_ip_range"`
-	ServiceIPRange string `yaml:"service_ip_range"`
-	NodePortRange  string `yaml:"node_port_range"`
+	K8SVersion     string   `yaml:"k8s_version" comment:"kubernetes options"`
+	ClusterID      string   `yaml:"cluster_id"`
+	APILbIP        string   `yaml:"api_lb_ip"`
+	LbIP           string   `yaml:"lb_ip"`
+	LbPort         int      `yaml:"lb_port"`
+	PodIPRange     string   `yaml:"pod_ip_range"`
+	ServiceIPRange string   `yaml:"service_ip_range"`
+	NodePortRange  string   `yaml:"node_port_range"`
+	ApiSans        []string `yaml:"api_sans"`
 
 	//# for air gap installation
 	ClosedNetwork              bool   `yaml:"closed_network"`

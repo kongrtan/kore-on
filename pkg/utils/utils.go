@@ -8,12 +8,8 @@ import (
 	"github.com/hhkbp2/go-logging"
 	"kore-on/pkg/conf"
 	"kore-on/pkg/model"
-	"reflect"
 	"runtime"
-	"strconv"
 
-	//"github.com/magiconair/properties"
-	"github.com/pelletier/go-toml"
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
@@ -325,9 +321,9 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 
 	os.MkdirAll(conf.KoreonDestDir, os.ModePerm)
 
-	idRsa := workDir + "/" + conf.KoreonDestDir + "/" + "id_rsa"
-	sslRegistryCrt := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.crt"
-	sslRegistryKey := workDir + "/" + conf.KoreonDestDir + "/" + "ssl_registry.key"
+	idRsa := workDir + "/" + conf.KoreonDestDir + "/" + conf.IdRsa
+	sslRegistryCrt := workDir + "/" + conf.KoreonDestDir + "/" + conf.SSLRegistryCrt
+	sslRegistryKey := workDir + "/" + conf.KoreonDestDir + "/" + conf.SSLRegistryKey
 
 	repoBackupTgz := workDir + "/" + conf.KoreonDestDir + "/" + conf.RepoFile
 	harborBackupTgz := workDir + "/" + conf.KoreonDestDir + "/" + conf.HarborFile
@@ -342,7 +338,7 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	harborBackupFilePath := koreonToml.PrivateRegistry.RegistryArchiveFile
 
 	switch cmd {
-	case "create", "apply", "destroy":
+	case conf.CMD_CREATE, conf.CMD_APPLY, conf.CMD_DESTROY:
 		if !FileExists(nodePoolSecurityPrivateKeyPath) {
 			PrintError(fmt.Sprintf("private-key-path : %s file is not found", nodePoolSecurityPrivateKeyPath))
 			errorCnt++
@@ -428,32 +424,31 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	return nil
 }
 
-func GetCubeToml(workDir string) (model.KoreonToml, error) {
-	var koreonToml = model.KoreonToml{}
-
-	if !FileExists(conf.KoreonConfigFile) {
-		//utils.PrintError("cube.toml file is not found. Run cube init first")
-		return koreonToml, fmt.Errorf("file is not found")
-	}
-
-	c, err := ioutil.ReadFile(workDir + "/" + conf.KoreonConfigFile)
-	if err != nil {
-		//PrintError(err.Error())
-		return koreonToml, err
-	}
-
-	str := string(c)
-	str = strings.Replace(str, "\\", "/", -1)
-	c = []byte(str)
-
-	err = toml.Unmarshal(c, &koreonToml)
-	if err != nil {
-		PrintError(err.Error())
-		return koreonToml, err
-	}
-
-	return koreonToml, nil
-}
+//func GetCubeToml(workDir string) (model.KoreonToml, error) {
+//	var koreonToml = model.KoreonToml{}
+//
+//	if !FileExists(conf.KoreonConfigFile) {
+//		return koreonToml, fmt.Errorf("file is not found")
+//	}
+//
+//	c, err := ioutil.ReadFile(workDir + "/" + conf.KoreonConfigFile)
+//	if err != nil {
+//		//PrintError(err.Error())
+//		return koreonToml, err
+//	}
+//
+//	str := string(c)
+//	str = strings.Replace(str, "\\", "/", -1)
+//	c = []byte(str)
+//
+//	err = toml.Unmarshal(c, &koreonToml)
+//	if err != nil {
+//		PrintError(err.Error())
+//		return koreonToml, err
+//	}
+//
+//	return koreonToml, nil
+//}
 
 func CheckDocker() error {
 	//fmt.Println("Checking pre-requisition [" + runtime.GOOS + "]")
@@ -555,7 +550,7 @@ func PrintError(message string) {
 
 func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes map[string]string) string {
 
-	inventory := "# Inventory create by cube\n\n"
+	inventory := "# Inventory create by koreon\n\n"
 
 	masterIps := koreonToml.NodePool.Master.IP
 	nodeIps := koreonToml.NodePool.Node.IP
@@ -726,14 +721,20 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	//default values
 	allYaml.Provider = false
 	allYaml.CloudProvider = "onpremise"
-
-	allYaml.PodIPRange = "10.32.0.0/12"
-	allYaml.ServiceIPRange = "10.96.0.0/12"
-	allYaml.NodePortRange = "30000-32767"
 	allYaml.InstallDir = "/var/lib/koreon"
+	allYaml.CertValidityDays = 3650
 
-	lbPort := 6443
-	//extLbPort := 6443
+	//#kubernetes
+	allYaml.ServiceIPRange = "10.96.0.0/12"
+	allYaml.PodIPRange = "10.32.0.0/12"
+	allYaml.NodePortRange = "30000-32767"
+
+	allYaml.LbPort = 6443
+	allYaml.KubeProxyMode = "iptables"  // iptable, ipvs
+	allYaml.ContainerRuntime = "docker" // docker,containerd
+
+	//NodePool
+	allYaml.DataRootDir = "/data"
 
 	regiPath := fmt.Sprintf("%s/roles/registry/files", destDir)
 	sshPath := fmt.Sprintf("%s/roles/master/files", destDir)
@@ -754,41 +755,30 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	}
 
 	k8sVersion := koreonToml.Kubernetes.Version
-	//providerName := koreonToml.NodePool.Provider.Name
 
-	allYaml.DataRootDir = koreonToml.NodePool.DataDir
+	if koreonToml.NodePool.DataDir != "" {
+		allYaml.DataRootDir = koreonToml.NodePool.DataDir
+	}
 
 	isPrivateRegistryPubicCert := koreonToml.PrivateRegistry.PublicCert
 	if isPrivateRegistryPubicCert {
 		os.MkdirAll(regiPath, os.ModePerm)
-		CopyFile(conf.KoreonDestDir+"/"+"ssl_registry.crt", regiPath+"/harbor.crt")
-		CopyFile(conf.KoreonDestDir+"/"+"ssl_registry.key", regiPath+"/harbor.key")
+		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryCrt, regiPath+"/"+conf.HarborCrt)
+		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryKey, regiPath+"/"+conf.HarborKey)
 	}
 
 	os.MkdirAll(sshPath, os.ModePerm)
-	CopyFile(conf.KoreonDestDir+"/"+"id_rsa", sshPath+"/id_rsa")
-	CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
+	CopyFile(conf.KoreonDestDir+"/"+conf.IdRsa, sshPath+"/"+conf.IdRsa)
+	//CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
 
-	//allYaml.Provider = koreonToml.Cube.Provider
 	allYaml.ClosedNetwork = koreonToml.Koreon.ClosedNetwork
-	//allYaml.CloudProvider = providerName
-	allYaml.DataRootDir = koreonToml.NodePool.DataDir
+
 	allYaml.K8SVersion = k8sVersion
 	registryIP := koreonToml.PrivateRegistry.RegistryIP
 	registryDomain := koreonToml.PrivateRegistry.RegistryIP
 
 	if koreonToml.PrivateRegistry.RegistryDomain != "" {
 		registryDomain = koreonToml.PrivateRegistry.RegistryDomain
-	}
-
-	if koreonToml.Koreon.ClosedNetwork {
-		//allYaml.APIImage = registryDomain + "/google_containers/kube-apiserver-amd64:" + k8sVersion
-		//allYaml.ControllerImage = registryDomain + "/google_containers/kube-controller-manager-amd64:" + k8sVersion
-		//allYaml.SchedulerImage = registryDomain + "/google_containers/kube-scheduler-amd64:" + k8sVersion
-	} else {
-		//allYaml.APIImage = "k8s.gcr.io/kube-apiserver-amd64:" + k8sVersion
-		//allYaml.ControllerImage = "k8s.gcr.io/kube-controller-manager-amd64:" + k8sVersion
-		//allYaml.SchedulerImage = "k8s.gcr.io/kube-scheduler-amd64:" + k8sVersion
 	}
 
 	if koreonToml.Kubernetes.ServiceCidr != "" {
@@ -798,8 +788,6 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	if koreonToml.Kubernetes.PodCidr != "" {
 		allYaml.PodIPRange = koreonToml.Kubernetes.PodCidr
 	}
-
-	allYaml.LbPort = lbPort
 
 	if len(koreonToml.NodePool.Master.PrivateIP) == len(koreonToml.NodePool.Master.IP) {
 		allYaml.APILbIP = fmt.Sprintf("https://%s:%d", koreonToml.NodePool.Master.PrivateIP[0], allYaml.LbPort)
@@ -813,7 +801,7 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 		allYaml.LbIP = koreonToml.NodePool.Master.LbIP
 	}
 
-	//allYaml.ApiSans = koreonToml.Kubernetes.ApiSans
+	allYaml.ApiSans = koreonToml.Kubernetes.ApiSans
 
 	allYaml.RegistryInstall = koreonToml.PrivateRegistry.Install
 	allYaml.RegistryDataDir = koreonToml.PrivateRegistry.DataDir
@@ -830,56 +818,22 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 
 	allYaml.MasterIsolated = koreonToml.NodePool.Master.Isolated
 
-	//if koreonToml.Cube.StorageClassName != "" {
-	//	allYaml.StorageClassName = koreonToml.Cube.StorageClassName
-	//} else {
-	//	allYaml.StorageClassName = "default-storage"
-	//}
-
-	//switch koreonToml.NodePool.Provider.Name {
-	//case "aws", "eks":
-	//	//todo 확인 필요 && koreonToml.Cube.Provider
-	//	if koreonToml.SharedStorage.StorageType == "" {
-	//		allYaml.StorageType = "efs"
-	//	} else {
-	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
-	//	}
-	//case "azure", "aks":
-	//	//todo 확인필요 && koreonToml.Cube.Provider
-	//	if koreonToml.SharedStorage.StorageType == "" {
-	//		allYaml.StorageType = "azurefile"
-	//	} else {
-	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
-	//	}
-	//default:
-	//	if koreonToml.SharedStorage.StorageType == "" {
-	//		allYaml.StorageType = "nfs"
-	//	} else {
-	//		allYaml.StorageType = koreonToml.SharedStorage.StorageType
-	//	}
-	//}
-
 	allYaml.LocalRepository = koreonToml.Koreon.LocalRepository
 
 	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
 
-	if koreonToml.Kubernetes.KubeProxyMode == "" {
-		allYaml.KubeProxyMode = "iptables"
-	} else {
+	if koreonToml.Kubernetes.KubeProxyMode != "" {
 		allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
 	}
 
-	if koreonToml.Kubernetes.ContainerRuntime == "" {
-		allYaml.ContainerRuntime = "docker"
-	} else {
+	if koreonToml.Kubernetes.ContainerRuntime != "" {
 		allYaml.ContainerRuntime = koreonToml.Kubernetes.ContainerRuntime
 	}
 
 	if koreonToml.Koreon.CertValidityDays > 0 {
 		allYaml.CertValidityDays = koreonToml.Koreon.CertValidityDays
-	} else {
-		allYaml.CertValidityDays = 3650
 	}
+
 	//vxlan-mode
 	allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
 
@@ -902,44 +856,6 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	ioutil.WriteFile(allYamlPath+"/basic.yml", b, 0600)
 
 	return allYamlPath + "/basic.yml"
-}
-
-func setField(field reflect.Value, defaultVal string) error {
-
-	if !field.CanSet() {
-		return fmt.Errorf("Can't set value\n")
-	}
-
-	switch field.Kind() {
-
-	case reflect.Int:
-		if val, err := strconv.ParseInt(defaultVal, 10, 64); err == nil {
-			field.Set(reflect.ValueOf(int(val)).Convert(field.Type()))
-		}
-	case reflect.String:
-		field.Set(reflect.ValueOf(defaultVal).Convert(field.Type()))
-	}
-
-	return nil
-}
-
-func Set(ptr interface{}, tag string) error {
-	if reflect.TypeOf(ptr).Kind() != reflect.Ptr {
-		return fmt.Errorf("Not a pointer")
-	}
-
-	v := reflect.ValueOf(ptr).Elem()
-	t := v.Type()
-
-	for i := 0; i < t.NumField(); i++ {
-		if defaultVal := t.Field(i).Tag.Get(tag); defaultVal != "-" {
-			if err := setField(v.Field(i), defaultVal); err != nil {
-				return err
-			}
-
-		}
-	}
-	return nil
 }
 
 func NewUUID() (string, error) {

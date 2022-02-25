@@ -22,7 +22,7 @@ type strCreateCmd struct {
 }
 
 const initDesc = `
-This command get cube script files which used to infra creation. 
+This command get koreon script files which used to infra creation. 
 `
 
 const createDesc = `
@@ -32,13 +32,8 @@ Or if want to setup infrastructure and Kubernetes separately, run 'create --targ
 
 const createExample = `
 # Create a infra and deploy kubernetes.
-cube create
+koreonctl create
 
-# Create a infra only.
-cube create -t infra
-
-# Create kubernetes cluster. Infra should be created before.
-cube create -t k8s
 `
 
 func createCmd() *cobra.Command {
@@ -74,15 +69,15 @@ func (c *strCreateCmd) run() error {
 	var err error = nil
 	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
 	startTime := time.Now()
-	logger.Infof("Start provisioning for cloud infrastructure [%s]", koreonToml.NodePool.Provider)
+	logger.Infof("Start provisioning for cloud infrastructure")
 
 	switch c.target {
 	default:
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup cube cluster ..."))
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup Koreon cluster ..."))
 		if err = c.create(workDir, koreonToml); err != nil {
 			return err
 		}
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup cube cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
+		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup Koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
 	}
 
 	//infra.PrintK8sWorkResult(workDir, c.target)
@@ -94,17 +89,15 @@ var Version = "unknown_version"
 var CommitId = "unknown_commitid"
 var BuildDate = "unknown_builddate"
 
-func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
+func (c *strCreateCmd) create(workDir string, koreonToml model.KoreonToml) error {
 	// # 1
 	utils.CheckDocker()
 
-	if knitToml.Koreon.Version != "" {
-		utils.CopyFilePreWork(workDir, knitToml, "create")
-	}
+	utils.CopyFilePreWork(workDir, koreonToml, conf.CMD_CREATE)
 
-	inventoryFilePath := utils.CreateInventoryFile(workDir, knitToml, nil)
+	inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
 
-	basicFilePath := utils.CreateBasicYaml(workDir, knitToml, conf.CMD_CREATE)
+	basicFilePath := utils.CreateBasicYaml(workDir, koreonToml, conf.CMD_CREATE)
 
 	commandArgs := []string{
 		"docker",
@@ -133,9 +126,9 @@ func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
 		"-i",
 		conf.InventoryIni,
 		"-u",
-		knitToml.NodePool.Security.SSHUserID, //수정
+		koreonToml.NodePool.Security.SSHUserID, //수정
 		"--private-key",
-		conf.KoreonDestDir + "/id_rsa",
+		conf.KoreonDestDir + "/" + conf.IdRsa,
 		conf.CreateYaml,
 	}
 
@@ -159,7 +152,7 @@ func (c *strCreateCmd) create(workDir string, knitToml model.KoreonToml) error {
 
 	//log.Printf("Running command and waiting for it to finish...")
 
-	err := syscall.Exec("/usr/local/bin/docker", commandArgs, os.Environ())
+	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
 		log.Printf("Command finished with error: %v", err)
 	}

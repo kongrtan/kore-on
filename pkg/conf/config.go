@@ -23,8 +23,6 @@ const (
 	PrepareAirgapYaml = "/koreon/scripts/prepare-repository.yml"
 	BasicYaml         = "/koreon/inventory/sample/group_vars/all/basic.yml"
 	WorkDir           = "/koreon/work"
-	RepoFile          = "repo-backup.tgz"
-	HarborFile        = "harbor-backup.tgz"
 )
 
 var SupportK8SVersion = []string{
@@ -47,4 +45,15 @@ const (
 	CMD_DESTROY         = "destroy"
 	CMD_VERSION         = "version"
 	CMD_PREPARE_AIREGAP = "prepare-airgap"
+)
+
+const (
+	RepoFile       = "repo-backup.tgz"
+	HarborFile     = "harbor-backup.tgz"
+	SSLRegistryCrt = "ssl_registry.crt"
+	SSLRegistryKey = "ssl_registry.key"
+	IdRsa          = "id_rsa"
+	HarborCrt      = "harbor.crt"
+	HarborKey      = "harbor.key"
+	DockerBin      = "/usr/local/bin/docker"
 )

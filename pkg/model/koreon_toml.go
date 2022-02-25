@@ -2,34 +2,28 @@ package model
 
 type KoreonToml struct {
 	Koreon struct {
-		Version            string `toml:"version,omitempty"`
-		Provider           bool   `toml:"provider"`
-		ClusterName        string `toml:"cluster-name,omitempty"`
-		ClusterDescription string `toml:"cluster-description,omitempty"`
-		ClusterType        string `toml:"cluster-type,omitempty"`
-		ClusterID          string `toml:"cluster-id,omitempty"`
-		AlertLanguage      string `toml:"alert-language,omitempty"`
-		StorageClassName   string `toml:"storage-class-name,omitempty"`
-		DebugMode          bool   `toml:"debug-mode,omitempty"`
-		InstallDir         string `toml:"install-dir,omitempty"`
-		CertValidityDays   int    `toml:"cert-validity-days,omitempty"`
+		ClusterName      string `toml:"cluster-name,omitempty"`
+		ClusterID        string `toml:"cluster-id,omitempty"`
+		InstallDir       string `toml:"install-dir,omitempty"`
+		CertValidityDays int    `toml:"cert-validity-days,omitempty"`
+
 		//#Airgap
-		//ArchiveRepo                bool   `toml:"archive-repo"`
 		ClosedNetwork              bool   `toml:"closed-network,omitempty"`
 		LocalRepository            string `toml:"local-repository,omitempty"`
 		LocalRepositoryArchiveFile string `toml:"local-repository-archive-file"`
+		DebugMode                  bool   `toml:"debug-mode,omitempty"`
 	} `toml:"koreon,omitempty"`
 
 	Kubernetes struct {
 		Version          string   `toml:"version,omitempty"`
+		ContainerRuntime string   `toml:"container-runtime"`
+		KubeProxyMode    string   `toml:"kube-proxy-mode"`
+		VxlanMode        bool     `toml:"vxlan-mode"`
 		ServiceCidr      string   `toml:"service-cidr,omitempty"`
 		PodCidr          string   `toml:"pod-cidr,omitempty"`
-		ApiSans          []string `toml:"api-sans,omitempty"`
-		AuditLogEnable   bool     `toml:"audit-log-enable"`
-		KubeProxyMode    string   `toml:"kube-proxy-mode"`
-		ContainerRuntime string   `toml:"container-runtime"`
-		VxlanMode        bool     `toml:"vxlan-mode"`
 		NodePortRange    string   `toml:"node-port-range,omitempty"`
+		AuditLogEnable   bool     `toml:"audit-log-enable"`
+		ApiSans          []string `toml:"api-sans,omitempty"`
 
 		Etcd struct {
 			IP            []string `toml:"ip,omitempty"`
@@ -41,29 +35,19 @@ type KoreonToml struct {
 	NodePool struct {
 		DataDir string `toml:"data-dir,omitempty"`
 
-		Provider struct {
-			Name     string `toml:"name,omitempty"`
-			Location string `toml:"location,omitempty"`
-		} `toml:"provider,omitempty"`
-
 		Security struct {
 			SSHUserID      string `toml:"ssh-user-id,omitempty"`
 			SSHPort        int    `toml:"ssh-port,omitempty"`
 			PrivateKeyPath string `toml:"private-key-path,omitempty"`
-			KubeConfigPath string `toml:"kube-config-path"`
 		} `toml:"security,omitempty"`
 
 		Master struct {
-			Name      string   `toml:"name,omitempty"`
-			IP        []string `toml:"ip,omitempty"`
-			PrivateIP []string `toml:"private-ip,omitempty"`
-			LbIP      string   `toml:"lb-ip,omitempty"`
-
-			IngressHost string `toml:"ingress-host,omitempty"`
-			NodePortURL string `toml:"node-port-url,omitempty"`
-
-			Isolated       bool `toml:"isolated"`
-			HaproxyInstall bool `toml:"haproxy-install"`
+			Name           string   `toml:"name,omitempty"`
+			IP             []string `toml:"ip,omitempty"`
+			PrivateIP      []string `toml:"private-ip,omitempty"`
+			LbIP           string   `toml:"lb-ip,omitempty"`
+			Isolated       bool     `toml:"isolated"`
+			HaproxyInstall bool     `toml:"haproxy-install"`
 		} `toml:"master,omitempty"`
 
 		Node StrNode `toml:"node,omitempty"`
@@ -95,12 +79,6 @@ type KoreonToml struct {
 }
 
 type StrNode struct {
-	IP          []string `toml:"ip,omitempty"`
-	PrivateIP   []string `toml:"private-ip,omitempty"`
-	NodeOptions []string `toml:"node-options,omitempty"`
-}
-
-// constructor function
-func (a *KoreonToml) Fill_defaults() {
-	a.Koreon.Version = "aaa"
+	IP        []string `toml:"ip,omitempty"`
+	PrivateIP []string `toml:"private-ip,omitempty"`
 }
