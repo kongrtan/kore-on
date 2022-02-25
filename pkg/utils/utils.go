@@ -719,19 +719,20 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	var allYaml = model.BasicYaml{}
 
 	//default values
+	//koreon
 	allYaml.Provider = false
 	allYaml.CloudProvider = "onpremise"
 	allYaml.InstallDir = "/var/lib/koreon"
-	allYaml.CertValidityDays = 3650
+	allYaml.CertValidityDays = 365
 
 	//#kubernetes
 	allYaml.ServiceIPRange = "10.96.0.0/12"
 	allYaml.PodIPRange = "10.32.0.0/12"
 	allYaml.NodePortRange = "30000-32767"
-
 	allYaml.LbPort = 6443
-	allYaml.KubeProxyMode = "iptables"  // iptable, ipvs
-	allYaml.ContainerRuntime = "docker" // docker,containerd
+	allYaml.KubeProxyMode = "iptables"      // iptable, ipvs
+	allYaml.ContainerRuntime = "containerd" // docker,containerd
+	allYaml.ApiSans = koreonToml.Kubernetes.ApiSans
 
 	//NodePool
 	allYaml.DataRootDir = "/data"
@@ -746,40 +747,22 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
 	allYaml.ClusterID = clusterID
 
-	if koreonToml.Kubernetes.NodePortRange != "" {
-		allYaml.NodePortRange = koreonToml.Kubernetes.NodePortRange
+	//koreon
+	//
+	if koreonToml.Koreon.CertValidityDays > 0 {
+		allYaml.CertValidityDays = koreonToml.Koreon.CertValidityDays
 	}
 
+	allYaml.ClosedNetwork = koreonToml.Koreon.ClosedNetwork
 	if koreonToml.Koreon.InstallDir != "" {
 		allYaml.InstallDir = koreonToml.Koreon.InstallDir
 	}
 
-	k8sVersion := koreonToml.Kubernetes.Version
+	allYaml.LocalRepository = koreonToml.Koreon.LocalRepository
 
-	if koreonToml.NodePool.DataDir != "" {
-		allYaml.DataRootDir = koreonToml.NodePool.DataDir
-	}
-
-	isPrivateRegistryPubicCert := koreonToml.PrivateRegistry.PublicCert
-	if isPrivateRegistryPubicCert {
-		os.MkdirAll(regiPath, os.ModePerm)
-		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryCrt, regiPath+"/"+conf.HarborCrt)
-		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryKey, regiPath+"/"+conf.HarborKey)
-	}
-
-	os.MkdirAll(sshPath, os.ModePerm)
-	CopyFile(conf.KoreonDestDir+"/"+conf.IdRsa, sshPath+"/"+conf.IdRsa)
-	//CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
-
-	allYaml.ClosedNetwork = koreonToml.Koreon.ClosedNetwork
-
-	allYaml.K8SVersion = k8sVersion
-	registryIP := koreonToml.PrivateRegistry.RegistryIP
-	registryDomain := koreonToml.PrivateRegistry.RegistryIP
-
-	if koreonToml.PrivateRegistry.RegistryDomain != "" {
-		registryDomain = koreonToml.PrivateRegistry.RegistryDomain
-	}
+	//k8s
+	//
+	allYaml.K8SVersion = koreonToml.Kubernetes.Version
 
 	if koreonToml.Kubernetes.ServiceCidr != "" {
 		allYaml.ServiceIPRange = koreonToml.Kubernetes.ServiceCidr
@@ -787,6 +770,28 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 
 	if koreonToml.Kubernetes.PodCidr != "" {
 		allYaml.PodIPRange = koreonToml.Kubernetes.PodCidr
+	}
+
+	if koreonToml.Kubernetes.NodePortRange != "" {
+		allYaml.NodePortRange = koreonToml.Kubernetes.NodePortRange
+	}
+
+	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
+
+	if koreonToml.Kubernetes.KubeProxyMode != "" {
+		allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
+	}
+
+	if koreonToml.Kubernetes.ContainerRuntime != "" {
+		allYaml.ContainerRuntime = koreonToml.Kubernetes.ContainerRuntime
+	}
+
+	//vxlan-mode
+	allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
+
+	//nodepool
+	if koreonToml.NodePool.DataDir != "" {
+		allYaml.DataRootDir = koreonToml.NodePool.DataDir
 	}
 
 	if len(koreonToml.NodePool.Master.PrivateIP) == len(koreonToml.NodePool.Master.IP) {
@@ -801,7 +806,28 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 		allYaml.LbIP = koreonToml.NodePool.Master.LbIP
 	}
 
-	allYaml.ApiSans = koreonToml.Kubernetes.ApiSans
+	allYaml.MasterIsolated = koreonToml.NodePool.Master.Isolated
+	allYaml.Haproxy = koreonToml.NodePool.Master.HaproxyInstall //# Set False When Already Physical Loadbalancer Available"
+
+	//storage
+	allYaml.StorageInstall = koreonToml.SharedStorage.Install
+	allYaml.NfsIP = koreonToml.SharedStorage.StorageIP
+	allYaml.NfsVolumeDir = koreonToml.SharedStorage.VolumeDir
+
+	//registry
+	isPrivateRegistryPubicCert := koreonToml.PrivateRegistry.PublicCert
+	if isPrivateRegistryPubicCert {
+		os.MkdirAll(regiPath, os.ModePerm)
+		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryCrt, regiPath+"/"+conf.HarborCrt)
+		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryKey, regiPath+"/"+conf.HarborKey)
+	}
+
+	os.MkdirAll(sshPath, os.ModePerm)
+	CopyFile(conf.KoreonDestDir+"/"+conf.IdRsa, sshPath+"/"+conf.IdRsa)
+	//CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
+
+	registryIP := koreonToml.PrivateRegistry.RegistryIP
+	registryDomain := koreonToml.PrivateRegistry.RegistryIP
 
 	allYaml.RegistryInstall = koreonToml.PrivateRegistry.Install
 	allYaml.RegistryDataDir = koreonToml.PrivateRegistry.DataDir
@@ -809,33 +835,9 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	allYaml.RegistryDomain = registryDomain
 	allYaml.RegistryPublicCert = isPrivateRegistryPubicCert
 
-	allYaml.Haproxy = koreonToml.NodePool.Master.HaproxyInstall //# Set False When Already Physical Loadbalancer Available"
-
-	allYaml.NfsIP = koreonToml.SharedStorage.StorageIP
-	allYaml.NfsVolumeDir = koreonToml.SharedStorage.VolumeDir
-
-	allYaml.StorageInstall = koreonToml.SharedStorage.Install
-
-	allYaml.MasterIsolated = koreonToml.NodePool.Master.Isolated
-
-	allYaml.LocalRepository = koreonToml.Koreon.LocalRepository
-
-	allYaml.AuditLogEnable = koreonToml.Kubernetes.AuditLogEnable
-
-	if koreonToml.Kubernetes.KubeProxyMode != "" {
-		allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
+	if koreonToml.PrivateRegistry.RegistryDomain != "" {
+		registryDomain = koreonToml.PrivateRegistry.RegistryDomain
 	}
-
-	if koreonToml.Kubernetes.ContainerRuntime != "" {
-		allYaml.ContainerRuntime = koreonToml.Kubernetes.ContainerRuntime
-	}
-
-	if koreonToml.Koreon.CertValidityDays > 0 {
-		allYaml.CertValidityDays = koreonToml.Koreon.CertValidityDays
-	}
-
-	//vxlan-mode
-	allYaml.KubeProxyMode = koreonToml.Kubernetes.KubeProxyMode
 
 	switch command {
 	case conf.CMD_PREPARE_AIREGAP:
