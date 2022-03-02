@@ -22,10 +22,7 @@ import (
 )
 
 type strApplyCmd struct {
-	name    string
 	dryRun  bool
-	timeout int64
-	target  string
 	verbose bool
 	step    bool
 }
@@ -42,7 +39,6 @@ func applyCmd() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&apply.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
 	f.BoolVarP(&apply.verbose, "verbose", "v", false, "verbose")
 	f.BoolVarP(&apply.step, "step", "", false, "step")
 	f.BoolVarP(&apply.dryRun, "dry-run", "d", false, "dryRun")
@@ -166,26 +162,26 @@ func (c *strApplyCmd) run() error {
 		//노드 추가
 		if len(addMap) > 0 {
 			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, addMap)
-			addNode(workDir, inventoryFilePath, basicFilePath, sshId, addMap, c)
+			addNode(workDir, inventoryFilePath, basicFilePath, sshId, addMap, c, koreonToml.Koreon.DebugMode)
 		}
 
 		//노드 삭제
 		if len(delMap) > 0 {
 			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
-			removeNode(workDir, inventoryFilePath, basicFilePath, sshId, delMap, c)
+			removeNode(workDir, inventoryFilePath, basicFilePath, sshId, delMap, c, koreonToml.Koreon.DebugMode)
 		}
 
 		//업그레이드
 		if isUpgrade {
 			inventoryFilePath := utils.CreateInventoryFile(workDir, koreonToml, nil)
-			upgrade(workDir, inventoryFilePath, basicFilePath, sshId, c)
+			upgrade(workDir, inventoryFilePath, basicFilePath, sshId, c, koreonToml.Koreon.DebugMode)
 		}
 	}
 
 	return nil
 }
 
-func addNode(workDir string, inventoryFilePath string, basicFilePath string, sshId string, addMap map[string]string, c *strApplyCmd) error {
+func addNode(workDir string, inventoryFilePath string, basicFilePath string, sshId string, addMap map[string]string, c *strApplyCmd, debugMode bool) error {
 
 	fmt.Println(fmt.Sprintf("add node %v", addMap))
 	commandArgs := []string{
@@ -213,8 +209,6 @@ func addNode(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		conf.AddNodeYaml,
 	}
 
-	fmt.Printf("%s \n", commandArgs)
-
 	if c.verbose {
 		commandArgs = append(commandArgs, "-v")
 	}
@@ -228,7 +222,9 @@ func addNode(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		commandArgs = append(commandArgs, "-D")
 	}
 
-	//log.Printf("Running command and waiting for it to finish...")
+	if debugMode {
+		fmt.Printf("%s \n", commandArgs)
+	}
 
 	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {
@@ -237,7 +233,7 @@ func addNode(workDir string, inventoryFilePath string, basicFilePath string, ssh
 	return err
 }
 
-func removeNode(workDir string, inventoryFilePath string, basicFilePath string, sshId string, delMap map[string]string, c *strApplyCmd) error {
+func removeNode(workDir string, inventoryFilePath string, basicFilePath string, sshId string, delMap map[string]string, c *strApplyCmd, debugMode bool) error {
 	fmt.Println(fmt.Sprintf("del node %v", delMap))
 	var err error
 
@@ -279,8 +275,6 @@ func removeNode(workDir string, inventoryFilePath string, basicFilePath string, 
 			conf.RemoveNodeYaml,
 		}
 
-		fmt.Printf("%s \n", commandArgs)
-
 		if c.verbose {
 			commandArgs = append(commandArgs, "-v")
 		}
@@ -294,7 +288,9 @@ func removeNode(workDir string, inventoryFilePath string, basicFilePath string, 
 			commandArgs = append(commandArgs, "-D")
 		}
 
-		//log.Printf("Running command and waiting for it to finish...")
+		if debugMode {
+			fmt.Printf("%s \n", commandArgs)
+		}
 
 		err = syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 		if err != nil {
@@ -304,7 +300,7 @@ func removeNode(workDir string, inventoryFilePath string, basicFilePath string, 
 	return err
 }
 
-func upgrade(workDir string, inventoryFilePath string, basicFilePath string, sshId string, c *strApplyCmd) {
+func upgrade(workDir string, inventoryFilePath string, basicFilePath string, sshId string, c *strApplyCmd, debugMode bool) {
 	commandArgs := []string{
 		"docker",
 		"run",
@@ -330,8 +326,6 @@ func upgrade(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		conf.UpgradeYaml,
 	}
 
-	fmt.Printf("%s \n", commandArgs)
-
 	if c.verbose {
 		commandArgs = append(commandArgs, "-v")
 	}
@@ -345,7 +339,9 @@ func upgrade(workDir string, inventoryFilePath string, basicFilePath string, ssh
 		commandArgs = append(commandArgs, "-D")
 	}
 
-	//log.Printf("Running command and waiting for it to finish...")
+	if debugMode {
+		fmt.Printf("%s \n", commandArgs)
+	}
 
 	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {

@@ -10,6 +10,8 @@ const (
 	KoreonKubeConfigPath = "/etc/kubernetes/acloud"
 	KoreonKubeConfig     = "acloud-client-kubeconfig"
 	KoreonConfigFile     = "koreon.toml"
+	KoreonBasicYaml      = "basic.yaml"
+	KoreonInventoryIni   = "inventory.ini"
 	KoreonDestDir        = ".koreon"
 
 	CreateYaml        = "/koreon/scripts/cluster.yml"
@@ -23,6 +25,7 @@ const (
 	PrepareAirgapYaml = "/koreon/scripts/prepare-repository.yml"
 	BasicYaml         = "/koreon/inventory/sample/group_vars/all/basic.yml"
 	WorkDir           = "/koreon/work"
+	SshPort           = 22
 )
 
 var SupportK8SVersion = []string{

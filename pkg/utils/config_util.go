@@ -10,11 +10,10 @@ import (
 	"strings"
 )
 
-func GetKnitTomlConfig(workDir string) (model.KoreonToml, error) {
+func GetKoreonTomlConfig(workDir string) (model.KoreonToml, error) {
 
 	errorCnt := 0
 	configFullPath := workDir + "/" + conf.KoreonConfigFile
-	//logger.Debugf("path : %s", configFullPath)
 
 	var c []byte
 	var err error
@@ -46,7 +45,7 @@ func GetKnitTomlConfig(workDir string) (model.KoreonToml, error) {
 
 func ValidateKoreonTomlConfig(workDir string) (model.KoreonToml, bool) {
 	errorCnt := 0
-	koreonToml, _ := GetKnitTomlConfig(workDir)
+	koreonToml, _ := GetKoreonTomlConfig(workDir)
 
 	koreonClusterName := koreonToml.Koreon.ClusterName
 
@@ -187,19 +186,12 @@ func checkSharedStorage(koreonToml model.KoreonToml) int {
 			errorCnt++
 		}
 
-		//20200827
 		if koreonToml.SharedStorage.StorageIP == "" {
 			PrintError("shared-storage > storage-ip is required.")
 			errorCnt++
 		}
 
 	}
-
-	//20200827
-	//if koreonToml.SharedStorage.StorageIP == "" {
-	//	PrintError("shared-storage > storage-ip is required.")
-	//	errorCnt++
-	//}
 
 	return errorCnt
 }

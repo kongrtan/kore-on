@@ -13,10 +13,7 @@ import (
 )
 
 type strPrepareAirgapCmd struct {
-	name    string
 	dryRun  bool
-	timeout int64
-	target  string
 	verbose bool
 	step    bool
 }
@@ -33,7 +30,6 @@ func prepareAirgapCmd() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&airgap.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
 	f.BoolVarP(&airgap.verbose, "verbose", "v", false, "verbose")
 	f.BoolVarP(&airgap.step, "step", "", false, "step")
 	f.BoolVarP(&airgap.dryRun, "dry-run", "d", false, "dryRun")
@@ -45,18 +41,12 @@ func (c *strPrepareAirgapCmd) run() error {
 	var err error = nil
 	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
 	startTime := time.Now()
-	logger.Infof("Start provisioning for cloud infrastructure")
-	switch c.target {
-	default:
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nPrepare airgap ..."))
-		if err = c.prepareAirgap(workDir, koreonToml); err != nil {
-			return err
-		}
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
-	}
 
-	//infra.PrintK8sWorkResult(workDir, c.target)
-	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "Installation Completed."))
+	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nPrepare airgap ..."))
+	if err = c.prepareAirgap(workDir, koreonToml); err != nil {
+		return err
+	}
+	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Prepare airgap Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
 	return nil
 }
 
@@ -109,8 +99,6 @@ func (c *strPrepareAirgapCmd) prepareAirgap(workDir string, koreonToml model.Kor
 		commandArgs = append(commandArgs, "-C")
 		commandArgs = append(commandArgs, "-D")
 	}
-
-	//log.Printf("Running command and waiting for it to finish...")
 
 	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {

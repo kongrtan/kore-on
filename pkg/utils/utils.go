@@ -4,7 +4,10 @@ import (
 	"bufio"
 	cryptornad "crypto/rand"
 	"fmt"
-	"github.com/briandowns/spinner"
+	"path/filepath"
+	"regexp"
+
+	//"github.com/briandowns/spinner"
 	"github.com/hhkbp2/go-logging"
 	"kore-on/pkg/conf"
 	"kore-on/pkg/model"
@@ -14,49 +17,22 @@ import (
 	"io"
 	"io/ioutil"
 	"math/big"
-	"math/rand"
+	//"math/rand"
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
 	"strings"
-	"time"
+	//"time"
 )
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 var logger = logging.GetLogger("utils")
-var Spnr = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-
-var knownProviders = []string{
-	"gcp",
-	"azure",
-	"aws",
-	"onpremise",
-	"aliyun",
-	"eks",
-	"aks",
-	"gke",
-	"tke",
-	"tencent",
-	"diamanti",
-}
-
-var localProviders = []string{
-	"virtualbox",
-	"minikube",
-}
 
 func FileExists(name string) bool {
-	//workDir, _ := os.Getwd()
-	//fmt.Printf("workdir %s\n",workDir)
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -133,188 +109,6 @@ func CopyFile0600(source string, dest string) (err error) {
 	return nil
 }
 
-func CopyDir(source string, dest string) (err error) {
-
-	// get properties of source dir
-	sourceinfo, err := os.Stat(source)
-	if err != nil {
-		return err
-	}
-
-	// create dest dir
-
-	err = os.MkdirAll(dest, sourceinfo.Mode())
-	if err != nil {
-		return err
-	}
-
-	directory, _ := os.Open(source)
-
-	objects, err := directory.Readdir(-1)
-
-	for _, obj := range objects {
-
-		sourcefilepointer := source + "/" + obj.Name()
-
-		destinationfilepointer := dest + "/" + obj.Name()
-
-		if obj.IsDir() {
-			// create sub-directories - recursively
-			err = CopyDir(sourcefilepointer, destinationfilepointer)
-			if err != nil {
-				logger.Error(err)
-			}
-		} else {
-			// perform copy
-			err = CopyFile(sourcefilepointer, destinationfilepointer)
-			if err != nil {
-				logger.Error(err)
-			}
-		}
-
-	}
-	return
-}
-
-func ReadFile(filePath string, buf *[]byte) {
-
-	file, err := os.Open(filePath)
-	CheckError(err)
-
-	defer file.Close()
-
-	fi, err := file.Stat()
-	CheckError(err)
-
-	*buf = make([]byte, fi.Size())
-
-	_, err = file.Read(*buf)
-	CheckError(err)
-}
-
-func WriteFile(filePath string, buf *[]byte) error {
-	f, err := os.OpenFile(filePath, os.O_RDWR, 0644)
-	if err != nil {
-		logger.Errorf("error while open file: %s\n", err.Error())
-		return err
-	}
-	defer f.Close()
-
-	err = f.Truncate(0)
-	if err != nil {
-		logger.Errorf("fail to write file[1]: %s\n", err.Error())
-		return err
-	}
-
-	_, err = f.WriteString(string(*buf))
-	if err != nil {
-		logger.Errorf("fail to write file[2]: %s\n", err.Error())
-		return err
-	}
-
-	return nil
-}
-
-func WriteFileString(filePath string, content string) error {
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		logger.Errorf("error while open file: %s\n", err.Error())
-		return err
-	}
-	defer f.Close()
-
-	err = f.Truncate(0)
-	if err != nil {
-		logger.Errorf("fail to write file[1]: %s\n", err.Error())
-		return err
-	}
-
-	_, err = f.WriteString(content)
-	if err != nil {
-		logger.Errorf("fail to write file[2]: %s\n", err.Error())
-		return err
-	}
-
-	return nil
-}
-
-func CheckError(err error) {
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
-}
-
-func CheckErrorWithMsg(err error, msg string) {
-	if err != nil {
-		logger.Error(err.Error())
-		logger.Error(msg)
-	}
-}
-
-func CheckProvider(p string) error {
-	found := false
-
-	for _, known := range knownProviders {
-		if p == known {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		providers := strings.Join(knownProviders, ",")
-		return fmt.Errorf("unrecognized provider \"%s\": known provider are %s", p, providers)
-	}
-
-	return nil
-}
-
-func CheckLocalProvider(p string) bool {
-
-	for _, known := range localProviders {
-		if p == known {
-			return true
-		}
-	}
-
-	return false
-}
-
-func RandStringBytes(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
-}
-
-func checkIp(public string, private string) error {
-	r, _ := regexp.Compile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
-	if len(public) == 0 {
-		return fmt.Errorf("public ip of node not exists")
-	} else if !r.MatchString(public) {
-		return fmt.Errorf("public ip invalid: %s\n", public)
-	}
-	if len(private) == 0 {
-		return fmt.Errorf("private ip of node not exists")
-	} else if !r.MatchString(private) {
-		return fmt.Errorf("private ip invalid: %s\n", private)
-	}
-
-	return nil
-}
-
-func ParentPath() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		PrintError(err.Error())
-		os.Exit(1)
-	}
-	parent := filepath.Dir(wd)
-	return parent
-}
-
 func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) error {
 
 	errorCnt := 0
@@ -361,7 +155,6 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 				errorCnt++
 			}
 		}
-		//close_network은 추후 처리
 	}
 
 	if koreonToml.Koreon.ClosedNetwork && cmd == conf.CMD_CREATE {
@@ -383,7 +176,7 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	if errorCnt > 0 {
 		os.Exit(1)
 	} else {
-		//상단은 validation check 만 진행하고 실제 복사등의 기능 구현은 여기애서 함.
+		//상단은 validation check 만 진행하고 기능 수행은 여기부터 진행함.
 		os.Remove(idRsa)
 		os.Remove(sslRegistryCrt)
 		os.Remove(sslRegistryKey)
@@ -423,32 +216,6 @@ func CopyFilePreWork(workDir string, koreonToml model.KoreonToml, cmd string) er
 	}
 	return nil
 }
-
-//func GetCubeToml(workDir string) (model.KoreonToml, error) {
-//	var koreonToml = model.KoreonToml{}
-//
-//	if !FileExists(conf.KoreonConfigFile) {
-//		return koreonToml, fmt.Errorf("file is not found")
-//	}
-//
-//	c, err := ioutil.ReadFile(workDir + "/" + conf.KoreonConfigFile)
-//	if err != nil {
-//		//PrintError(err.Error())
-//		return koreonToml, err
-//	}
-//
-//	str := string(c)
-//	str = strings.Replace(str, "\\", "/", -1)
-//	c = []byte(str)
-//
-//	err = toml.Unmarshal(c, &koreonToml)
-//	if err != nil {
-//		PrintError(err.Error())
-//		return koreonToml, err
-//	}
-//
-//	return koreonToml, nil
-//}
 
 func CheckDocker() error {
 	//fmt.Println("Checking pre-requisition [" + runtime.GOOS + "]")
@@ -539,11 +306,6 @@ func PrintInfo(message string) {
 	}
 }
 
-//
-//2022.02.18 사용하는 함수
-//
-//
-
 func PrintError(message string) {
 	fmt.Fprintf(os.Stderr, "%s\n", message)
 }
@@ -564,8 +326,7 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 	registryPrivateIp := koreonToml.PrivateRegistry.PrivateIP
 	storagePrivateIp := koreonToml.SharedStorage.PrivateIP
 
-	sshPort := 22
-	nodeCnt := 0
+	sshPort := conf.SshPort
 
 	if koreonToml.NodePool.Security.SSHPort > 0 {
 		sshPort = koreonToml.NodePool.Security.SSHPort
@@ -581,23 +342,19 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 		inventory += fmt.Sprintf("master-%v ansible_ssh_host=%s ip=%s ansible_port=%v\n", masterIps[i], masterIps[i], ip, sshPort)
 	}
 
-	for j := 0; j < len(nodeIps); j++ {
-		nodeCnt++
+	for i := 0; i < len(nodeIps); i++ {
 		ip := ""
 		if len(nodePrivateIps) > 0 {
-			ip = nodePrivateIps[j]
+			ip = nodePrivateIps[i]
 		} else {
-			ip = nodeIps[j]
+			ip = nodeIps[i]
 		}
 
 		inventoryItem := []string{
-			fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v", nodeIps[j], nodeIps[j], ip, sshPort),
+			fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v", nodeIps[i], nodeIps[i], ip, sshPort),
 		}
 		inventoryItem = append(inventoryItem, "\n")
 		inventory += strings.Join(inventoryItem, " ")
-
-		//inventory += fmt.Sprintf("worker-%v ansible_ssh_host=%s ip=%s ansible_port=%v labels=\"%v\" taints=\"%v\"\n", nodes[i].IP[j], nodes[i].IP[j], ip, sshPort, nodeLabels, nodeTaints)
-
 	}
 
 	for i := 0; i < len(etcdIps); i++ {
@@ -635,7 +392,6 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 	inventory += fmt.Sprintf("[etcd]\n")
 
 	for i := 0; i < len(etcdIps); i++ {
-		//inventory += fmt.Sprintf("etcd%02d\n", i+1)
 		inventory += fmt.Sprintf("etcd-%v\n", etcdIps[i])
 	}
 
@@ -644,7 +400,6 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 	inventory += fmt.Sprintf("[etcd-private]\n")
 
 	for i := 0; i < len(etcdIps); i++ {
-		//inventory += fmt.Sprintf("etcd%02d\n", i+1)
 		inventory += fmt.Sprintf("etcd-%v\n", etcdIps[i])
 	}
 
@@ -653,36 +408,31 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 	inventory += fmt.Sprintf("[masters]\n")
 
 	for i := 0; i < len(masterIps); i++ {
-		//inventory += fmt.Sprintf("master%02d\n", i+1)
 		inventory += fmt.Sprintf("master-%v\n", masterIps[i])
 	}
 
 	//sslhost
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[sslhost]\n")
-	//inventory += fmt.Sprintf("master01\n")
 
 	if masterIps != nil {
 		inventory += fmt.Sprintf("master-%v\n", masterIps[0])
 	}
 
 	//node
-	nodeCnt = 0
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[node]\n")
 
 	if addNodes != nil && len(addNodes) > 0 {
 		for ip, _ := range addNodes {
-			//inventory += fmt.Sprintf("worker%02d\n", nodeCnt)
 			inventory += fmt.Sprintf("worker-%v\n", ip)
 		}
 	} else {
 		for j := 0; j < len(nodeIps); j++ {
-			nodeCnt++
-			//inventory += fmt.Sprintf("worker%02d\n", nodeCnt)
 			inventory += fmt.Sprintf("worker-%v\n", nodeIps[j])
 		}
 	}
+
 	//registry
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[registry]\n")
@@ -702,17 +452,18 @@ func CreateInventoryFile(destDir string, koreonToml model.KoreonToml, addNodes m
 			inventory += fmt.Sprintf("storage-%v\n", storageIp)
 		}
 	}
-	//fmt.Printf("destDir =  %s\n", destDir)
 
 	inventory += fmt.Sprintf("\n")
 	inventory += fmt.Sprintf("[cluster:children]\n")
 	inventory += fmt.Sprintf("masters\n")
 	inventory += fmt.Sprintf("node\n")
 
-	os.MkdirAll(destDir, os.ModePerm)
+	b := []byte(inventory)
+	inventoryPath := destDir + "/" + conf.KoreonDestDir
+	os.MkdirAll(inventoryPath, os.ModePerm)
+	ioutil.WriteFile(inventoryPath+"/"+conf.KoreonInventoryIni, b, 0600)
 
-	ioutil.WriteFile(destDir+"/"+"inventory.ini", []byte(inventory), 0600)
-	return destDir + "/" + "inventory.ini"
+	return inventoryPath + "/" + conf.KoreonInventoryIni
 }
 
 func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string) string {
@@ -738,8 +489,7 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	allYaml.DataRootDir = "/data"
 
 	regiPath := fmt.Sprintf("%s/roles/registry/files", destDir)
-	sshPath := fmt.Sprintf("%s/roles/master/files", destDir)
-	allYamlPath := fmt.Sprintf("%s/group_vars/all", destDir)
+	//sshPath := fmt.Sprintf("%s/roles/master/files", destDir)
 
 	allYaml.ClusterName = koreonToml.Koreon.ClusterName
 
@@ -822,8 +572,8 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 		CopyFile(conf.KoreonDestDir+"/"+conf.SSLRegistryKey, regiPath+"/"+conf.HarborKey)
 	}
 
-	os.MkdirAll(sshPath, os.ModePerm)
-	CopyFile(conf.KoreonDestDir+"/"+conf.IdRsa, sshPath+"/"+conf.IdRsa)
+	//os.MkdirAll(sshPath, os.ModePerm)
+	//CopyFile(conf.KoreonDestDir+"/"+conf.IdRsa, sshPath+"/"+conf.IdRsa)
 	//CopyFile(conf.KoreonDestDir+"/"+"id_rsa.pub", sshPath+"/id_rsa.pub")
 
 	registryIP := koreonToml.PrivateRegistry.RegistryIP
@@ -854,10 +604,12 @@ func CreateBasicYaml(destDir string, koreonToml model.KoreonToml, command string
 	}
 
 	b, _ := yaml.Marshal(allYaml)
-	os.MkdirAll(allYamlPath, os.ModePerm)
-	ioutil.WriteFile(allYamlPath+"/basic.yml", b, 0600)
 
-	return allYamlPath + "/basic.yml"
+	allYamlPath := destDir + "/" + conf.KoreonDestDir
+	os.MkdirAll(allYamlPath, os.ModePerm)
+	ioutil.WriteFile(allYamlPath+"/"+conf.KoreonBasicYaml, b, 0600)
+
+	return allYamlPath + "/" + conf.KoreonBasicYaml
 }
 
 func NewUUID() (string, error) {
@@ -903,3 +655,190 @@ func IsSupportK8sVersion(version string) bool {
 	}
 	return isSupport
 }
+
+func CheckError(err error) {
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+func checkIp(public string, private string) error {
+	r, _ := regexp.Compile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
+	if len(public) == 0 {
+		return fmt.Errorf("public ip of node not exists")
+	} else if !r.MatchString(public) {
+		return fmt.Errorf("public ip invalid: %s\n", public)
+	}
+	if len(private) == 0 {
+		return fmt.Errorf("private ip of node not exists")
+	} else if !r.MatchString(private) {
+		return fmt.Errorf("private ip invalid: %s\n", private)
+	}
+
+	return nil
+}
+
+func ParentPath() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		PrintError(err.Error())
+		os.Exit(1)
+	}
+	parent := filepath.Dir(wd)
+	return parent
+}
+
+//func GetCubeToml(workDir string) (model.KoreonToml, error) {
+//	var koreonToml = model.KoreonToml{}
+//
+//	if !FileExists(conf.KoreonConfigFile) {
+//		return koreonToml, fmt.Errorf("file is not found")
+//	}
+//
+//	c, err := ioutil.ReadFile(workDir + "/" + conf.KoreonConfigFile)
+//	if err != nil {
+//		//PrintError(err.Error())
+//		return koreonToml, err
+//	}
+//
+//	str := string(c)
+//	str = strings.Replace(str, "\\", "/", -1)
+//	c = []byte(str)
+//
+//	err = toml.Unmarshal(c, &koreonToml)
+//	if err != nil {
+//		PrintError(err.Error())
+//		return koreonToml, err
+//	}
+//
+//	return koreonToml, nil
+//}
+
+//const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+//var Spnr = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+
+//var knownProviders = []string{
+//	"gcp",
+//	"azure",
+//	"aws",
+//	"onpremise",
+//	"aliyun",
+//	"eks",
+//	"aks",
+//	"gke",
+//	"tke",
+//	"tencent",
+//	"diamanti",
+//}
+//
+//var localProviders = []string{
+//	"virtualbox",
+//	"minikube",
+//}
+
+//func CopyDir(source string, dest string) (err error) {
+//
+//	// get properties of source dir
+//	sourceinfo, err := os.Stat(source)
+//	if err != nil {
+//		return err
+//	}
+//
+//	// create dest dir
+//
+//	err = os.MkdirAll(dest, sourceinfo.Mode())
+//	if err != nil {
+//		return err
+//	}
+//
+//	directory, _ := os.Open(source)
+//
+//	objects, err := directory.Readdir(-1)
+//
+//	for _, obj := range objects {
+//
+//		sourcefilepointer := source + "/" + obj.Name()
+//
+//		destinationfilepointer := dest + "/" + obj.Name()
+//
+//		if obj.IsDir() {
+//			// create sub-directories - recursively
+//			err = CopyDir(sourcefilepointer, destinationfilepointer)
+//			if err != nil {
+//				logger.Error(err)
+//			}
+//		} else {
+//			// perform copy
+//			err = CopyFile(sourcefilepointer, destinationfilepointer)
+//			if err != nil {
+//				logger.Error(err)
+//			}
+//		}
+//
+//	}
+//	return
+//}
+//
+//func ReadFile(filePath string, buf *[]byte) {
+//
+//	file, err := os.Open(filePath)
+//	CheckError(err)
+//
+//	defer file.Close()
+//
+//	fi, err := file.Stat()
+//	CheckError(err)
+//
+//	*buf = make([]byte, fi.Size())
+//
+//	_, err = file.Read(*buf)
+//	CheckError(err)
+//}
+//
+//func WriteFile(filePath string, buf *[]byte) error {
+//	f, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+//	if err != nil {
+//		logger.Errorf("error while open file: %s\n", err.Error())
+//		return err
+//	}
+//	defer f.Close()
+//
+//	err = f.Truncate(0)
+//	if err != nil {
+//		logger.Errorf("fail to write file[1]: %s\n", err.Error())
+//		return err
+//	}
+//
+//	_, err = f.WriteString(string(*buf))
+//	if err != nil {
+//		logger.Errorf("fail to write file[2]: %s\n", err.Error())
+//		return err
+//	}
+//
+//	return nil
+//}
+//
+//func WriteFileString(filePath string, content string) error {
+//	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+//	if err != nil {
+//		logger.Errorf("error while open file: %s\n", err.Error())
+//		return err
+//	}
+//	defer f.Close()
+//
+//	err = f.Truncate(0)
+//	if err != nil {
+//		logger.Errorf("fail to write file[1]: %s\n", err.Error())
+//		return err
+//	}
+//
+//	_, err = f.WriteString(content)
+//	if err != nil {
+//		logger.Errorf("fail to write file[2]: %s\n", err.Error())
+//		return err
+//	}
+//
+//	return nil
+//}

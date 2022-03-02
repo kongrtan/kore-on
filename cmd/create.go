@@ -13,28 +13,10 @@ import (
 )
 
 type strCreateCmd struct {
-	name    string
 	dryRun  bool
-	timeout int64
-	target  string
 	verbose bool
 	step    bool
 }
-
-const initDesc = `
-This command get koreon script files which used to infra creation. 
-`
-
-const createDesc = `
-Provision private/public infrastructure and deploy kubernetes cluster, at once run 'create' command. 
-Or if want to setup infrastructure and Kubernetes separately, run 'create --target=infra' or 'create --target=k8s' each.
-`
-
-const createExample = `
-# Create a infra and deploy kubernetes.
-koreonctl create
-
-`
 
 func createCmd() *cobra.Command {
 	create := &strCreateCmd{}
@@ -42,7 +24,7 @@ func createCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "create [flags]",
 		Short:        "Install kubernetes cluster, registry",
-		Long:         initDesc,
+		Long:         "",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return create.run()
@@ -50,7 +32,6 @@ func createCmd() *cobra.Command {
 	}
 
 	f := cmd.Flags()
-	f.StringVarP(&create.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
 	f.BoolVarP(&create.verbose, "verbose", "v", false, "verbose")
 	f.BoolVarP(&create.step, "step", "", false, "step")
 	f.BoolVarP(&create.dryRun, "dry-run", "d", false, "dryRun")
@@ -60,10 +41,10 @@ func createCmd() *cobra.Command {
 
 func (c *strCreateCmd) run() error {
 
-	if !utils.CheckUserInput("Do you really want to create? Only 'yes' will be accepted to confirm: ", "yes") {
-		fmt.Println("nothing to changed. exit")
-		os.Exit(1)
-	}
+	//if !utils.CheckUserInput("Do you really want to create? Only 'yes' will be accepted to confirm: ", "yes") {
+	//	fmt.Println("nothing to changed. exit")
+	//	os.Exit(1)
+	//}
 
 	workDir, _ := os.Getwd()
 	var err error = nil
@@ -71,23 +52,14 @@ func (c *strCreateCmd) run() error {
 	startTime := time.Now()
 	logger.Infof("Start provisioning for cloud infrastructure")
 
-	switch c.target {
-	default:
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup Koreon cluster ..."))
-		if err = c.create(workDir, koreonToml); err != nil {
-			return err
-		}
-		utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup Koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
+	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "\nSetup Koreon cluster ..."))
+	if err = c.create(workDir, koreonToml); err != nil {
+		return err
 	}
+	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, fmt.Sprintf("Setup Koreon cluster Done. (%v)", (time.Duration(time.Since(startTime).Seconds())*time.Second).String())))
 
-	//infra.PrintK8sWorkResult(workDir, c.target)
-	utils.PrintInfo(fmt.Sprintf(conf.SUCCESS_FORMAT, "Installation Completed."))
 	return nil
 }
-
-var Version = "unknown_version"
-var CommitId = "unknown_commitid"
-var BuildDate = "unknown_builddate"
 
 func (c *strCreateCmd) create(workDir string, koreonToml model.KoreonToml) error {
 	// # 1
@@ -135,8 +107,6 @@ func (c *strCreateCmd) create(workDir string, koreonToml model.KoreonToml) error
 	commandArgs = append(commandArgs, commandArgsVol...)
 	commandArgs = append(commandArgs, commandArgsAnsible...)
 
-	fmt.Printf("%s \n", commandArgs)
-
 	if c.verbose {
 		commandArgs = append(commandArgs, "-v")
 	}
@@ -150,7 +120,9 @@ func (c *strCreateCmd) create(workDir string, koreonToml model.KoreonToml) error
 		commandArgs = append(commandArgs, "-D")
 	}
 
-	//log.Printf("Running command and waiting for it to finish...")
+	if koreonToml.Koreon.DebugMode {
+		fmt.Printf("%s \n", commandArgs)
+	}
 
 	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {

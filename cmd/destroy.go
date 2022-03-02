@@ -33,7 +33,7 @@ func destroyCmd() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&destroy.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
+	f.StringVarP(&destroy.target, "target", "", "", "target. [all]")
 	f.BoolVarP(&destroy.verbose, "verbose", "v", false, "verbose")
 	f.BoolVarP(&destroy.step, "step", "", false, "step")
 	f.BoolVarP(&destroy.dryRun, "dry-run", "d", false, "dryRun")
@@ -45,7 +45,7 @@ func (c *strDestroyCmd) run() error {
 	var err error = nil
 	koreonToml, _ := utils.ValidateKoreonTomlConfig(workDir)
 	startTime := time.Now()
-	logger.Infof("Start provisioning for cloud infrastructure")
+	logger.Infof("Start provisioning for koreon infrastructure")
 
 	switch c.target {
 	default:
@@ -131,9 +131,10 @@ func (c *strDestroyCmd) destroy(workDir string, koreonToml model.KoreonToml) err
 		commandArgs = append(commandArgs, "-C")
 		commandArgs = append(commandArgs, "-D")
 	}
-	fmt.Printf("%s \n", commandArgs)
 
-	//log.Printf("Running command and waiting for it to finish...")
+	if koreonToml.Koreon.DebugMode {
+		fmt.Printf("%s \n", commandArgs)
+	}
 
 	err := syscall.Exec(conf.DockerBin, commandArgs, os.Environ())
 	if err != nil {

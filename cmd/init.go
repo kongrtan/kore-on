@@ -11,12 +11,6 @@ import (
 )
 
 type strInitCmd struct {
-	name    string
-	dryRun  bool
-	timeout int64
-	target  string
-	verbose bool
-	fast    bool
 }
 
 func initCmd() *cobra.Command {
@@ -30,11 +24,6 @@ func initCmd() *cobra.Command {
 			return create.run()
 		},
 	}
-	f := cmd.Flags()
-	f.StringVarP(&create.target, "target", "", "", "target module. [registry|liteedge-master|liteedge-worker]")
-	f.BoolVarP(&create.verbose, "verbose", "v", false, "verbose")
-	f.BoolVarP(&create.fast, "fast", "f", false, "fast")
-	f.BoolVarP(&create.dryRun, "dry-run", "d", false, "dryRun")
 	return cmd
 }
 
