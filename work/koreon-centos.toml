@@ -1,6 +1,6 @@
 #koreon.toml
 [koreon]
-cluster-name = "koreon-cluster"
+cluster-name = "ml-central2"
 #cert-validity-days = 3650
 
 #closed-network = true
@@ -11,7 +11,7 @@ cluster-name = "koreon-cluster"
 
 [kubernetes]
 version = "1.19.10"
-#container-runtime = "containerd" #docker,containerd
+#container-runtime = "containerd"
 #kube-proxy-mode = "ipvs"
 #vxlan-mode = true
 #service-cidr ="10.96.0.0/12"
@@ -32,7 +32,7 @@ encrypt-secret = true
 
 [node-pool.security]
 ssh-user-id = "centos"
-private-key-path = "/Users/cert/hostacloud/id_rsa"
+private-key-path = "/Users/okpiri/cert/hostacloud/id_rsa"
 
 [node-pool.master]
 ip = ["192.168.88.141"]
@@ -58,7 +58,7 @@ install = true
 registry-ip = "192.168.88.145"
 data-dir = "/data/harbor"
 public-cert = false
-registry-archive-file = "/Users/git/kore-on/work/harbor.20220224_072307.tgz"
+registry-archive-file = "/Users/okpiri/git/kore-on/work/harbor.20220224_072307.tgz"
 
 [private-registry.cert-file]
 ssl-certificate = ""

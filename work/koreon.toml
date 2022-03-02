@@ -1,6 +1,6 @@
 #koreon.toml
 [koreon]
-cluster-name = "ml-central2"
+cluster-name = "ubuntu-cluster"
 #cert-validity-days = 3650
 
 #closed-network = true
@@ -20,10 +20,9 @@ version = "1.19.10"
 #audit-log-enable = true
 #api-sans = ["192.168.1.9"]
 
-
 [kubernetes.etcd]
-ip = ["192.168.88.141"]
-private-ip = ["172.33.88.141"]
+ip = ["192.168.88.161"]
+private-ip = ["172.33.88.161"]
 encrypt-secret = true
 
 
@@ -31,37 +30,35 @@ encrypt-secret = true
 #data-dir = "/data"
 
 [node-pool.security]
-ssh-user-id = "centos"
+ssh-user-id = "ubuntu"
 private-key-path = "/Users/okpiri/cert/hostacloud/id_rsa"
 
 [node-pool.master]
-ip = ["192.168.88.141"]
-private-ip = ["172.33.88.141"]
-lb-ip = "192.168.88.141"
+ip = ["192.168.88.161"]
+private-ip = ["172.33.88.161"]
+lb-ip = "192.168.88.161"
 #isolated = true
 #haproxy-install = true
 
 [node-pool.node]
-ip = ["192.168.88.142", "192.168.88.143"]
-private-ip = ["172.33.88.142", "172.33.88.143"]
+ip = ["192.168.88.162", "192.168.88.163"]
+private-ip = ["172.33.88.162", "172.33.88.163"]
 
 
 [shared-storage]
-install = false
-storage-ip = "192.168.88.11"
+install = true
+storage-ip = "192.168.88.164"
 volume-dir = "/data/nvme/mlops/161"
 volume-size = 1000
 
 
 [private-registry]
 install = true
-registry-ip = "192.168.88.145"
+registry-ip = "192.168.88.165"
 data-dir = "/data/harbor"
 public-cert = false
-registry-archive-file = "/Users/okpiri/git/kore-on/work/harbor.20220224_072307.tgz"
+#registry-archive-file = "/Users/okpiri/git/kore-on/work/harbor.20220224_072307.tgz"
 
 [private-registry.cert-file]
 ssl-certificate = ""
 ssl-certificate-key = ""
-
-
